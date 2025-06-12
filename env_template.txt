@@ -1,0 +1,25 @@
+# Jira Configuration
+JIRA_DOMAIN=https://your-domain.atlassian.net
+JIRA_EMAIL=your-email@example.com
+JIRA_API_TOKEN=your-api-token-here
+JIRA_PROJECT_KEY=PROJ
+
+# Story Points Custom Field ID
+# Common values: customfield_10016, customfield_10002, customfield_10008
+# Run with --find-field to discover your field ID
+JIRA_STORY_POINTS_FIELD=customfield_10016
+
+# Spreadsheet Configuration
+EXCEL_PATH=jira_cost_estimation.xlsx
+EXCEL_SHEET_NAME=Cost Estimation
+
+# Column Configuration (1-based indexing)
+EPIC_COLUMN=1
+STORY_COLUMN=2
+STORY_POINTS_COLUMN=3
+COST_PER_POINT_COLUMN=4
+TOTAL_COST_COLUMN=5
+
+# Data Configuration
+DATA_START_ROW=2
+COST_PER_STORY_POINT=100.0 
