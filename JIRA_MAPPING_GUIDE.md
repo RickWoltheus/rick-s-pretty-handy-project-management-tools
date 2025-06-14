@@ -2,19 +2,27 @@
 
 This guide explains how to configure your Jira stories to work with the enhanced spec sheet sync system that matches your sophisticated pricing structure.
 
-## 🏷️ Jira Labels for Risk Profiles
+## 🏷️ Jira "Type of Work" Field for Risk Profiles
 
-The enhanced sync system automatically determines risk profiles based on Jira labels. Add these labels to your stories:
+The enhanced sync system uses your "Type of work" custom field to determine risk profiles with intelligent priority system.
 
 ### Risk Profile Mapping
 
-| Risk Profile                     | Jira Labels                                       | Pricing Structure                    |
-| -------------------------------- | ------------------------------------------------- | ------------------------------------ |
-| **Proven** (Low Risk)            | `proven`, `low-risk`, `fixed`                     | Fixed price: €130/pt × (1 + 63% DoD) |
-| **Experimental** (Moderate Risk) | `experimental`, `moderate-risk`, `research`       | Range: ±30% variance                 |
-| **Dependant** (High Risk)        | `dependant`, `dependent`, `high-risk`, `external` | Hourly estimate: €95.37/hour         |
+| Risk Profile                     | Type of Work Values | Pricing Structure                    |
+| -------------------------------- | ------------------- | ------------------------------------ |
+| **Proven** (Low Risk)            | `Proven`            | Fixed price: €130/pt × (1 + 63% DoD) |
+| **Experimental** (Moderate Risk) | `Experimental`      | Range: ±30% variance                 |
+| **Dependant** (High Risk)        | `Dependant`         | Hourly estimate: €95.37/hour         |
 
-### Default Risk Assessment (if no labels)
+### Priority System (Most Risky Wins)
+
+When multiple values are present, the system uses the highest risk:
+
+- **Dependant** > **Experimental** > **Proven**
+- Example: Story with "Proven,Experimental" → **Experimental** (higher risk)
+- Example: Story with "Experimental,Dependant" → **Dependant** (highest risk)
+
+### Fallback Risk Assessment (if no Type of work field)
 
 - **≤ 3 story points**: Proven
 - **4-8 story points**: Experimental

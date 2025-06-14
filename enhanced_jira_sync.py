@@ -29,6 +29,15 @@ class EnhancedSpecSheetSync:
             self.hourly_rate = 127.16 * 0.75  # €127.16/h with 25% discount
             self.dod_impact_total = 0.63  # 63% total DoD impact
             
+            # Type of work field configuration
+            self.type_of_work_field = "customfield_10273"  # Type of work field
+            self.risk_priority = {  # Higher number = higher risk (takes priority)
+                'proven': 1,
+                'experimental': 2,
+                'dependant': 3,
+                'dependent': 3  # Alternative spelling
+            }
+            
         except Exception as e:
             print(f"❌ Configuration error: {e}")
             sys.exit(1)
@@ -182,11 +191,41 @@ class EnhancedSpecSheetSync:
         }
     
     def determine_risk_profile(self, story: Dict) -> str:
-        """Determine risk profile based on Jira story labels or custom fields"""
-        # Check labels for risk indicators
-        labels = story.get('fields', {}).get('labels', [])
+        """Determine risk profile based on Type of work field with priority system"""
         
-        # Check for risk-related labels
+        # First, check the Type of work custom field
+        type_of_work_value = story.get('fields', {}).get(self.type_of_work_field)
+        
+        if type_of_work_value:
+            # Handle both single values and arrays
+            if isinstance(type_of_work_value, list):
+                work_types = [item.get('value', '').lower() for item in type_of_work_value]
+            elif isinstance(type_of_work_value, dict):
+                work_types = [type_of_work_value.get('value', '').lower()]
+            elif isinstance(type_of_work_value, str):
+                # Handle comma-separated values or single value
+                work_types = [wt.strip().lower() for wt in type_of_work_value.split(',')]
+            else:
+                work_types = []
+            
+            # Find the highest priority (most risky) type
+            highest_priority = 0
+            selected_risk = 'experimental'  # default
+            
+            for work_type in work_types:
+                # Check for exact matches or partial matches
+                for risk_type, priority in self.risk_priority.items():
+                    if risk_type in work_type or work_type in risk_type:
+                        if priority > highest_priority:
+                            highest_priority = priority
+                            selected_risk = risk_type if risk_type != 'dependent' else 'dependant'
+            
+            if highest_priority > 0:
+                print(f"   🏷️  Type of work: {', '.join(work_types)} → {selected_risk}")
+                return selected_risk
+        
+        # Fallback 1: Check labels for risk indicators (legacy support)
+        labels = story.get('fields', {}).get('labels', [])
         risk_labels = [label.lower() for label in labels]
         
         if any(label in risk_labels for label in ['proven', 'low-risk', 'fixed']):
@@ -196,7 +235,7 @@ class EnhancedSpecSheetSync:
         elif any(label in risk_labels for label in ['dependant', 'dependent', 'high-risk', 'external']):
             return 'dependant'
         
-        # Default risk assessment based on story points
+        # Fallback 2: Default risk assessment based on story points
         story_points = self.jira_client.get_story_points(story)
         if story_points:
             if story_points <= 3:
@@ -206,6 +245,7 @@ class EnhancedSpecSheetSync:
             else:
                 return 'dependant'
         
+        print(f"   ⚠️  No Type of work field, using default: experimental")
         return 'experimental'  # Default to experimental
     
     def calculate_prices(self, story_points: float, risk_profile: str) -> Dict[str, float]:
