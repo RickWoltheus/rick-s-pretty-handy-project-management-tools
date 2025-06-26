@@ -191,7 +191,11 @@ class EnhancedSpecSheetSync:
     def generate_sprint_planning_report(self, epics: List[Dict] = None) -> Dict[str, any]:
         """Generate comprehensive sprint planning report"""
         if epics is None:
-            epics = self.jira_client.get_epics()
+            # Use pre-selected epics if available, otherwise fetch all
+            if hasattr(self, 'selected_epics') and self.selected_epics:
+                epics = self.selected_epics
+            else:
+                epics = self.jira_client.get_epics()
         
         # Calculate total story points across all epics
         total_story_points = 0
@@ -681,10 +685,17 @@ class EnhancedSpecSheetSync:
         """Sync Jira data to the specified scope sheet - completely regenerate from Jira"""
         print(f"🔄 Regenerating sheet: {sheet_name} from Jira data")
         
-        # Get Jira data
-        epics = self.jira_client.get_epics()
+        # Use pre-selected epics if available, otherwise fetch all
+        if hasattr(self, 'selected_epics') and self.selected_epics:
+            epics = self.selected_epics
+            version_info = getattr(self, 'selected_version', 'Selected Version')
+            print(f"📋 Using {len(epics)} epic(s) from '{version_info}'")
+        else:
+            epics = self.jira_client.get_epics()
+            print(f"📋 Using all epics from project")
+            
         if not epics:
-            print("⚠️  No epics found in Jira project")
+            print("⚠️  No epics found")
             return False
         
         # Load the worksheet
@@ -807,8 +818,9 @@ class EnhancedSpecSheetSync:
         """Add a summary section with totals at the end"""
         current_row = start_row + 1
         
-        # Add summary header
-        ws.cell(row=current_row, column=1).value = "PROJECT SUMMARY"
+        # Add summary header with version info
+        version_info = getattr(self, 'selected_version', 'All Epics') if hasattr(self, 'selected_version') else 'All Epics'
+        ws.cell(row=current_row, column=1).value = f"PROJECT SUMMARY - {version_info}"
         summary_font = Font(bold=True, size=12, color="FFFFFF")
         summary_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         
@@ -972,10 +984,29 @@ def main():
         print("\n❌ Connection test failed. Please check your configuration.")
         sys.exit(1)
     
+    # Allow user to select version/release
+    print("\n🔍 Select Version/Release to Sync:")
+    try:
+        epics, selected_version = sync.jira_client.get_epics_by_version_interactive()
+        
+        if not epics:
+            print(f"⚠️  No epics found for '{selected_version}'. Please check your version or try 'All Epics'.")
+            return
+        
+        print(f"\n📊 Found {len(epics)} epic(s) for '{selected_version}'")
+        
+        # Store selected version info for the sync
+        sync.selected_version = selected_version
+        sync.selected_epics = epics
+        
+    except KeyboardInterrupt:
+        print("\n⏹️  Operation cancelled.")
+        return
+    
     # Perform sync
     try:
         sync.sync_all_sheets()
-        print("\n🎉 All done! Check your spec sheet for updated Jira data.")
+        print(f"\n🎉 All done! Synced '{selected_version}' to your spec sheet.")
     except Exception as e:
         print(f"\n💥 Sync failed: {e}")
         import traceback

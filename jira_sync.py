@@ -41,23 +41,29 @@ class JiraSpreadsheetSync:
             print(f"❌ Spreadsheet error: {e}")
             return False
     
-    def sync_data(self) -> bool:
-        """Main sync function"""
+    def sync_data(self, version_filter: str = None) -> bool:
+        """Main sync function with optional version filtering"""
         print(f"\n🚀 Starting sync at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         try:
             # Load spreadsheet
             self.spreadsheet_manager.load_or_create_workbook()
             
-            # Get data from Jira
-            print("📥 Fetching epics from Jira...")
-            epics = self.jira_client.get_epics()
+            # Get data from Jira with optional version filter
+            if version_filter:
+                print(f"📥 Fetching epics for version: {version_filter}")
+                epics = self.jira_client.get_epics(version_filter)
+                version_info = version_filter
+            else:
+                print("📥 Fetching all epics from Jira...")
+                epics = self.jira_client.get_epics()
+                version_info = "All Epics"
             
             if not epics:
-                print("⚠️  No epics found in Jira project")
+                print(f"⚠️  No epics found for '{version_info}'")
                 return False
             
-            print(f"📋 Found {len(epics)} epics")
+            print(f"📋 Found {len(epics)} epics for '{version_info}'")
             
             # Clear existing data
             self.spreadsheet_manager.clear_data_rows()
@@ -169,9 +175,53 @@ def main():
         print("\n❌ Connection test failed. Please check your configuration.")
         sys.exit(1)
     
+    # Allow user to select version/release
+    selected_version = None
+    try:
+        # Ask if user wants to filter by version
+        use_version = input("\n🔍 Do you want to filter by a specific version/release? (y/N): ").strip().lower()
+        
+        if use_version == 'y':
+            versions = sync.jira_client.get_available_versions()
+            
+            if not versions:
+                print("⚠️  No versions found in project. Using all epics.")
+            else:
+                print("\n📋 Available Versions/Releases:")
+                print("0. All Epics (no version filter)")
+                for i, version in enumerate(versions, 1):
+                    version_details = sync.jira_client.get_version_details(version)
+                    status = "✅ Released" if version_details and version_details.get('released') else "🚧 Unreleased"
+                    release_date = version_details.get('releaseDate', 'No date') if version_details else 'No date'
+                    print(f"{i}. {version} ({status}) - {release_date}")
+                
+                while True:
+                    try:
+                        choice = input(f"\nSelect version (0-{len(versions)}): ").strip()
+                        choice_num = int(choice)
+                        
+                        if choice_num == 0:
+                            break
+                        elif 1 <= choice_num <= len(versions):
+                            selected_version = versions[choice_num - 1]
+                            print(f"📊 Selected version: {selected_version}")
+                            break
+                        else:
+                            print("❌ Invalid choice. Please try again.")
+                    except ValueError:
+                        print("❌ Please enter a valid number.")
+                    except KeyboardInterrupt:
+                        print("\n⏹️  Selection cancelled. Using all epics.")
+                        break
+        
+    except KeyboardInterrupt:
+        print("\n⏹️  Operation cancelled.")
+        return
+    
     # Perform sync
-    if sync.sync_data():
-        print("\n🎉 All done! Check your spreadsheet for updated data.")
+    if sync.sync_data(selected_version):
+        version_info = selected_version if selected_version else "All Epics"
+        print(f"\n🎉 All done! Synced '{version_info}' to your spreadsheet.")
     else:
         print("\n💥 Sync failed. Please check the error messages above.")
         sys.exit(1)

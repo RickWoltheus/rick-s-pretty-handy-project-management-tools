@@ -136,6 +136,8 @@ class FieldDiscovery:
             "Epic Name",
             "Sprint",
             "Team",
+            "Fix Version/s",
+            "Affects Version/s",
             "Original Estimate",
             "Remaining Estimate",
             "Time Spent",
