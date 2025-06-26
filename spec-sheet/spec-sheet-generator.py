@@ -652,6 +652,20 @@ class EnhancedSpecSheetSync:
     
     def get_moscow_priority(self, story: Dict) -> str:
         """Determine MoSCoW priority from Jira story"""
+        # Check labels first for explicit MoSCoW indicators (higher priority)
+        labels = story.get('fields', {}).get('labels', [])
+        moscow_labels = [label.lower() for label in labels]
+        
+        if any(label in moscow_labels for label in ['must', 'must-have']):
+            return 'Must Have'
+        elif any(label in moscow_labels for label in ['should', 'should-have']):
+            return 'Should Have'
+        elif any(label in moscow_labels for label in ['could', 'could-have']):
+            return 'Could Have'
+        elif any(label in moscow_labels for label in ['wont', 'wont-have', 'out-of-scope']):
+            return "Won't Have"
+        
+        # Fall back to priority field mapping if no explicit labels
         priority = story.get('fields', {}).get('priority', {})
         if priority:
             priority_name = priority.get('name', '').lower()
@@ -666,22 +680,90 @@ class EnhancedSpecSheetSync:
             elif priority_name in ['low', 'minor', 'trivial']:
                 return "Won't Have"
         
-        # Check labels for MoSCoW indicators
-        labels = story.get('fields', {}).get('labels', [])
-        moscow_labels = [label.lower() for label in labels]
-        
-        if any(label in moscow_labels for label in ['must', 'must-have']):
-            return 'Must Have'
-        elif any(label in moscow_labels for label in ['should', 'should-have']):
-            return 'Should Have'
-        elif any(label in moscow_labels for label in ['could', 'could-have']):
-            return 'Could Have'
-        elif any(label in moscow_labels for label in ['wont', 'wont-have', 'out-of-scope']):
-            return "Won't Have"
-        
         return 'Should Have'  # Default
+
+    def get_moscow_priorities_interactive(self) -> List[str]:
+        """Interactive method to select which MoSCoW priorities to include"""
+        available_priorities = ['Must Have', 'Should Have', 'Could Have', "Won't Have"]
+        
+        print("\n📋 MoSCoW Priority Filter:")
+        print("Select which priorities to include in your spec sheet:")
+        print("(You can select multiple priorities)")
+        print()
+        
+        for i, priority in enumerate(available_priorities, 1):
+            print(f"{i}. {priority}")
+        print("5. All priorities (no filter)")
+        print("0. Cancel")
+        
+        while True:
+            try:
+                choice = input(f"\nEnter your selection (1-5, or comma-separated for multiple): ").strip()
+                
+                if choice == "0":
+                    print("❌ Operation cancelled.")
+                    return None
+                
+                if choice == "5":
+                    print("📊 Including all MoSCoW priorities")
+                    return available_priorities
+                
+                # Handle comma-separated choices
+                choices = [int(c.strip()) for c in choice.split(',')]
+                selected_priorities = []
+                
+                for choice_num in choices:
+                    if 1 <= choice_num <= 4:
+                        priority = available_priorities[choice_num - 1]
+                        if priority not in selected_priorities:
+                            selected_priorities.append(priority)
+                    else:
+                        print(f"❌ Invalid choice: {choice_num}. Please select 1-5.")
+                        break
+                else:
+                    # All choices were valid
+                    if selected_priorities:
+                        print(f"📊 Selected priorities: {', '.join(selected_priorities)}")
+                        return selected_priorities
+                    else:
+                        print("❌ No priorities selected. Please select at least one.")
+                
+            except ValueError:
+                print("❌ Please enter valid numbers separated by commas.")
+            except KeyboardInterrupt:
+                print("\n⏹️  Selection cancelled. Using all priorities.")
+                return available_priorities
+
+    def filter_stories_by_moscow(self, stories: List[Dict], selected_priorities: List[str]) -> tuple[List[Dict], Dict[str, int]]:
+        """Filter stories based on selected MoSCoW priorities"""
+        if not selected_priorities:
+            return stories, {}
+        
+        filtered_stories = []
+        priority_counts = {priority: 0 for priority in ['Must Have', 'Should Have', 'Could Have', "Won't Have"]}
+        filtered_counts = {priority: 0 for priority in selected_priorities}
+        
+        for story in stories:
+            moscow_priority = self.get_moscow_priority(story)
+            priority_counts[moscow_priority] += 1
+            
+            if moscow_priority in selected_priorities:
+                filtered_stories.append(story)
+                filtered_counts[moscow_priority] += 1
+        
+        # Report filtering results
+        total_stories = len(stories)
+        filtered_total = len(filtered_stories)
+        
+        if filtered_total < total_stories:
+            print(f"   🔍 Filtered: {filtered_total}/{total_stories} stories match selected priorities")
+            for priority in selected_priorities:
+                if filtered_counts[priority] > 0:
+                    print(f"      - {priority}: {filtered_counts[priority]} stories")
+        
+        return filtered_stories, priority_counts
     
-    def sync_to_scope_sheet(self, sheet_name: str = 'Scope (Quantity)'):
+    def sync_to_scope_sheet(self, sheet_name: str = 'Scope (Quantity)', selected_priorities: List[str] = None):
         """Sync Jira data to the specified scope sheet - completely regenerate from Jira"""
         print(f"🔄 Regenerating sheet: {sheet_name} from Jira data")
         
@@ -698,6 +780,10 @@ class EnhancedSpecSheetSync:
             print("⚠️  No epics found")
             return False
         
+        # Store MoSCoW filter info
+        self.selected_moscow_priorities = selected_priorities
+        filter_info = f" (Filtered: {', '.join(selected_priorities)})" if selected_priorities and len(selected_priorities) < 4 else ""
+        
         # Load the worksheet
         if sheet_name not in self.workbook.sheetnames:
             print(f"❌ Sheet '{sheet_name}' not found in spec sheet")
@@ -711,9 +797,10 @@ class EnhancedSpecSheetSync:
         # Start adding data after headers (row 4 to account for header structure)
         current_row = 4
         
-        print(f"📝 Starting fresh sync at row {current_row}")
+        print(f"📝 Starting fresh sync at row {current_row}{filter_info}")
         
         total_items = 0
+        total_filtered_out = 0
         
         for epic in epics:
             epic_key = epic['key']
@@ -721,13 +808,25 @@ class EnhancedSpecSheetSync:
             
             print(f"\n📊 Processing epic: {epic_key} - {epic_summary}")
             
+            # Get stories for this epic
+            all_stories = self.jira_client.get_stories_for_epic(epic_key)
+            print(f"   Found {len(all_stories)} stories")
+            
+            # Filter stories by MoSCoW priorities if specified
+            if selected_priorities and len(selected_priorities) < 4:
+                stories, priority_counts = self.filter_stories_by_moscow(all_stories, selected_priorities)
+                filtered_out_count = len(all_stories) - len(stories)
+                total_filtered_out += filtered_out_count
+            else:
+                stories = all_stories
+                
+            if not stories:
+                print(f"   ⚠️  No stories match selected priorities - skipping epic")
+                continue
+            
             # Add epic header
             self._add_epic_header(ws, current_row, epic_key, epic_summary)
             current_row += 1
-            
-            # Get stories for this epic
-            stories = self.jira_client.get_stories_for_epic(epic_key)
-            print(f"   Found {len(stories)} stories")
             
             for story in stories:
                 story_key = story['key']
@@ -763,7 +862,10 @@ class EnhancedSpecSheetSync:
         
         # Save the workbook
         self.workbook.save(self.spec_sheet_path)
-        print(f"\n✅ Sync completed! Generated {total_items} items in {sheet_name}")
+        
+        # Report results
+        filter_summary = f" (filtered out {total_filtered_out} stories)" if total_filtered_out > 0 else ""
+        print(f"\n✅ Sync completed! Generated {total_items} items in {sheet_name}{filter_summary}")
         
         return True
     
@@ -818,9 +920,16 @@ class EnhancedSpecSheetSync:
         """Add a summary section with totals at the end"""
         current_row = start_row + 1
         
-        # Add summary header with version info
+        # Add summary header with version and filter info
         version_info = getattr(self, 'selected_version', 'All Epics') if hasattr(self, 'selected_version') else 'All Epics'
-        ws.cell(row=current_row, column=1).value = f"PROJECT SUMMARY - {version_info}"
+        moscow_filter = getattr(self, 'selected_moscow_priorities', None)
+        
+        if moscow_filter and len(moscow_filter) < 4:
+            filter_text = f" ({', '.join(moscow_filter)} only)"
+        else:
+            filter_text = ""
+            
+        ws.cell(row=current_row, column=1).value = f"PROJECT SUMMARY - {version_info}{filter_text}"
         summary_font = Font(bold=True, size=12, color="FFFFFF")
         summary_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         
@@ -947,14 +1056,14 @@ class EnhancedSpecSheetSync:
         print("✅ All connections successful")
         return True
     
-    def sync_all_sheets(self):
+    def sync_all_sheets(self, selected_priorities: List[str] = None):
         """Sync to all sheets - Jira as single source of truth"""
         # Sync the main scope sheet
         sheet_name = 'Scope (Quantity)'
         
         if sheet_name in self.workbook.sheetnames:
             print(f"\n🔄 Regenerating: {sheet_name}")
-            success = self.sync_to_scope_sheet(sheet_name)
+            success = self.sync_to_scope_sheet(sheet_name, selected_priorities)
             
             # Add sprint planning analysis if main sync successful
             if success and self.sprint_planning_enabled:
@@ -1003,10 +1112,24 @@ def main():
         print("\n⏹️  Operation cancelled.")
         return
     
+    # Allow user to select MoSCoW priorities to include
+    print("\n🎯 Filter by MoSCoW Priorities:")
+    try:
+        selected_priorities = sync.get_moscow_priorities_interactive()
+        
+        if selected_priorities is None:
+            print("⏹️  Operation cancelled.")
+            return
+            
+    except KeyboardInterrupt:
+        print("\n⏹️  Selection cancelled. Using all priorities.")
+        selected_priorities = ['Must Have', 'Should Have', 'Could Have', "Won't Have"]
+    
     # Perform sync
     try:
-        sync.sync_all_sheets()
-        print(f"\n🎉 All done! Synced '{selected_version}' to your spec sheet.")
+        sync.sync_all_sheets(selected_priorities)
+        priority_filter = f" with {', '.join(selected_priorities)} priorities" if len(selected_priorities) < 4 else ""
+        print(f"\n🎉 All done! Synced '{selected_version}'{priority_filter} to your spec sheet.")
     except Exception as e:
         print(f"\n💥 Sync failed: {e}")
         import traceback

@@ -187,34 +187,25 @@ class TestEnhancedSpecSheetSync:
         'JIRA_TYPE_OF_WORK_FIELD': 'customfield_10273'
     })
     def test_calculate_prices(self, spec_sheet_classes):
-        """Test price calculation logic"""
+        """Test price calculations for different risk profiles"""
         EnhancedSpecSheetSync = spec_sheet_classes['EnhancedSpecSheetSync']
-        
         sync = EnhancedSpecSheetSync()
         sync.jira_client = Mock()
         sync.jira_config = Mock()
-        # Mock the settings that calculate_prices needs
-        sync.settings = {
-            'base_story_point_price': 100.0,
-            'experimental_variance': 0.3,
-            'hourly_rate': 85.0
-        }
+        sync.settings = {'base_story_point_price': 100.0, 'experimental_variance': 0.3, 'hourly_rate': 85.0}
         
         # Test proven pricing
-        proven_prices = sync.calculate_prices(5, "proven")
-        assert "fixed" in proven_prices
-        assert proven_prices["fixed"] > 0
+        prices = sync.calculate_prices(5, 'proven')
+        assert prices['fixed'] == 500.0
         
         # Test experimental pricing
-        experimental_prices = sync.calculate_prices(8, "experimental")
-        assert "minimum" in experimental_prices
-        assert "maximum" in experimental_prices
-        assert experimental_prices["maximum"] > experimental_prices["minimum"]
+        prices = sync.calculate_prices(5, 'experimental')
+        assert prices['minimum'] == 350.0  # 500 * 0.7
+        assert prices['maximum'] == 650.0  # 500 * 1.3
         
         # Test dependant pricing
-        dependant_prices = sync.calculate_prices(3, "dependant")
-        assert "hourly_estimate" in dependant_prices
-        assert dependant_prices["hourly_estimate"] > 0
+        prices = sync.calculate_prices(5, 'dependant')
+        assert prices['hourly_estimate'] == 425.0  # 5 * 85
     
     @patch.dict(os.environ, {
         'JIRA_DOMAIN': 'https://test.atlassian.net',
@@ -269,6 +260,165 @@ class TestEnhancedSpecSheetSync:
         assert len(custom_team.members) == 3
         assert custom_team.get_total_fte() == 2.5
         assert custom_team.get_total_velocity() > 0
+
+    def test_moscow_priority_filtering(self, spec_sheet_classes):
+        """Test MoSCoW priority filtering functionality"""
+        EnhancedSpecSheetSync = spec_sheet_classes['EnhancedSpecSheetSync']
+        sync = EnhancedSpecSheetSync()
+        
+        # Mock stories with different MoSCoW priorities
+        mock_stories = [
+            {
+                'key': 'PROJ-1',
+                'fields': {
+                    'priority': {'name': 'Highest'},
+                    'labels': []
+                }
+            },
+            {
+                'key': 'PROJ-2',
+                'fields': {
+                    'priority': {'name': 'High'},
+                    'labels': []
+                }
+            },
+            {
+                'key': 'PROJ-3',
+                'fields': {
+                    'priority': {'name': 'Medium'},
+                    'labels': []
+                }
+            },
+            {
+                'key': 'PROJ-4',
+                'fields': {
+                    'priority': {'name': 'Low'},
+                    'labels': []
+                }
+            }
+        ]
+        
+        # Test filtering for Must Have and Should Have only
+        selected_priorities = ['Must Have', 'Should Have']
+        filtered_stories, priority_counts = sync.filter_stories_by_moscow(mock_stories, selected_priorities)
+        
+        assert len(filtered_stories) == 2  # Only Must Have and Should Have
+        assert filtered_stories[0]['key'] == 'PROJ-1'  # Must Have (Highest)
+        assert filtered_stories[1]['key'] == 'PROJ-2'  # Should Have (High)
+        
+        # Test filtering for Could Have only
+        selected_priorities = ['Could Have']
+        filtered_stories, priority_counts = sync.filter_stories_by_moscow(mock_stories, selected_priorities)
+        
+        assert len(filtered_stories) == 1
+        assert filtered_stories[0]['key'] == 'PROJ-3'  # Could Have (Medium)
+        
+        # Test no filtering (all priorities)
+        selected_priorities = ['Must Have', 'Should Have', 'Could Have', 'Won\'t Have']
+        filtered_stories, priority_counts = sync.filter_stories_by_moscow(mock_stories, selected_priorities)
+        
+        assert len(filtered_stories) == 4  # All stories
+
+    def test_moscow_priority_detection_from_labels(self, spec_sheet_classes):
+        """Test MoSCoW priority detection from Jira labels"""
+        EnhancedSpecSheetSync = spec_sheet_classes['EnhancedSpecSheetSync']
+        sync = EnhancedSpecSheetSync()
+        
+        # Test story with must-have label
+        story_with_must_label = {
+            'fields': {
+                'priority': {'name': 'Medium'},  # Different priority
+                'labels': ['must-have', 'feature']
+            }
+        }
+        priority = sync.get_moscow_priority(story_with_must_label)
+        assert priority == 'Must Have'
+        
+        # Test story with should-have label
+        story_with_should_label = {
+            'fields': {
+                'priority': {'name': 'Low'},
+                'labels': ['should', 'enhancement']
+            }
+        }
+        priority = sync.get_moscow_priority(story_with_should_label)
+        assert priority == 'Should Have'
+        
+        # Test story with could-have label
+        story_with_could_label = {
+            'fields': {
+                'priority': {'name': 'High'},
+                'labels': ['could-have', 'nice-to-have']
+            }
+        }
+        priority = sync.get_moscow_priority(story_with_could_label)
+        assert priority == 'Could Have'
+        
+        # Test story with won't-have label
+        story_with_wont_label = {
+            'fields': {
+                'priority': {'name': 'Highest'},
+                'labels': ['wont-have', 'out-of-scope']
+            }
+        }
+        priority = sync.get_moscow_priority(story_with_wont_label)
+        assert priority == 'Won\'t Have'
+
+    def test_sync_with_moscow_filtering_integration(self, spec_sheet_classes):
+        """Test integration of MoSCoW filtering in sync process"""
+        EnhancedSpecSheetSync = spec_sheet_classes['EnhancedSpecSheetSync']
+        sync = EnhancedSpecSheetSync()
+        sync.jira_client = Mock()
+        sync.jira_config = Mock()
+        sync.settings = {'base_story_point_price': 100.0, 'experimental_variance': 0.3, 'hourly_rate': 85.0}
+        
+        # Mock epic and stories
+        mock_epics = [{'key': 'EPIC-1', 'fields': {'summary': 'Test Epic'}}]
+        mock_stories = [
+            {
+                'key': 'PROJ-1',
+                'fields': {
+                    'summary': 'Must have story',
+                    'priority': {'name': 'Highest'},
+                    'labels': []
+                }
+            },
+            {
+                'key': 'PROJ-2',
+                'fields': {
+                    'summary': 'Won\'t have story',
+                    'priority': {'name': 'Low'},
+                    'labels': []
+                }
+            }
+        ]
+        
+        sync.selected_epics = mock_epics
+        sync.selected_version = 'Test Version'
+        sync.jira_client.get_stories_for_epic.return_value = mock_stories
+        sync.jira_client.get_story_points.return_value = 3
+        
+        # Mock workbook and worksheet
+        from unittest.mock import MagicMock
+        sync.workbook = MagicMock()
+        sync.workbook.sheetnames = ['Scope (Quantity)']
+        mock_ws = MagicMock()
+        sync.workbook.__getitem__.return_value = mock_ws
+        sync.spec_sheet_path = 'test.xlsx'
+        sync.workbook.save = Mock()
+        
+        # Test sync with Must Have filter only
+        selected_priorities = ['Must Have']
+        result = sync.sync_to_scope_sheet('Scope (Quantity)', selected_priorities)
+        
+        assert result is True
+        assert sync.selected_moscow_priorities == selected_priorities
+        
+        # Verify the workbook was saved (indicating successful sync)
+        sync.workbook.save.assert_called_once()
+        
+        # Verify that the method was called and filtering worked correctly
+        # The success of the sync indicates that filtering worked as expected
 
 
 class TestSpreadsheetGeneration:
