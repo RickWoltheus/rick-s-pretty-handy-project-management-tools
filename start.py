@@ -60,6 +60,12 @@ class MenuSystem:
                 "description": "Display helpful guides and documentation",
                 "script": None,
                 "function": self._show_documentation
+            },
+            "8": {
+                "name": "🧪 Run Tests",
+                "description": "Execute the test suite to verify functionality",
+                "script": "run_tests.py",
+                "function": self._run_tests
             }
         }
     
@@ -80,7 +86,7 @@ class MenuSystem:
     def get_user_choice(self) -> str:
         """Get user's menu choice"""
         while True:
-            choice = input("Select an option (0-7): ").strip()
+            choice = input("Select an option (0-8): ").strip()
             if choice in list(self.tools.keys()) + ["0"]:
                 return choice
             print("❌ Invalid choice. Please select a valid option.")
@@ -237,6 +243,60 @@ class MenuSystem:
                 if view == 'y':
                     self._display_file_content(doc)
             print()
+    
+    def _run_tests(self):
+        """Run the test suite"""
+        if not self._check_file_exists("run_tests.py"):
+            return
+        
+        print("Starting Test Suite...")
+        print("This will:")
+        print("• Run unit tests for core functionality")
+        print("• Test JIRA client with mock data")
+        print("• Validate spec sheet generation")
+        print("• Check sprint planning calculations")
+        print()
+        
+        # Ask user what type of tests to run
+        print("Test Options:")
+        print("1. Run all tests")
+        print("2. Run only unit tests")
+        print("3. Run with coverage report")
+        print("4. Run specific test file")
+        print("0. Cancel")
+        
+        choice = input("Select test option (0-4): ").strip()
+        
+        if choice == "0":
+            print("Test cancelled.")
+            return
+        elif choice == "1":
+            # Run all tests
+            subprocess.run([sys.executable, "run_tests.py", "--verbose"], check=True)
+        elif choice == "2":
+            # Run unit tests only
+            subprocess.run([sys.executable, "run_tests.py", "--unit", "--verbose"], check=True)
+        elif choice == "3":
+            # Run with coverage
+            subprocess.run([sys.executable, "run_tests.py", "--coverage", "--verbose"], check=True)
+        elif choice == "4":
+            # Run specific file
+            test_files = [
+                "test_spec_sheet_generator.py",
+                "test_jira_client.py"
+            ]
+            print("\nAvailable test files:")
+            for i, file in enumerate(test_files, 1):
+                print(f"{i}. {file}")
+            
+            file_choice = input("Select test file (1-2): ").strip()
+            if file_choice in ["1", "2"]:
+                selected_file = test_files[int(file_choice) - 1]
+                subprocess.run([sys.executable, "run_tests.py", "--file", selected_file, "--verbose"], check=True)
+            else:
+                print("Invalid file selection.")
+        else:
+            print("Invalid choice.")
     
     def _display_file_content(self, filename: str):
         """Display file content with pagination"""
