@@ -1,7 +1,7 @@
 import requests
 import json
 from typing import List, Dict, Optional
-from config import JiraConfig
+from .config import JiraConfig
 
 class JiraClient:
     """Client for interacting with Jira API"""

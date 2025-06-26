@@ -7,9 +7,9 @@ Syncs Jira epics and stories with cost estimation spreadsheet
 import sys
 from datetime import datetime
 from typing import List, Dict, Tuple
-from config import JiraConfig, SpreadsheetConfig
-from jira_client import JiraClient
-from spreadsheet_manager import SpreadsheetManager
+from utils.config import JiraConfig, SpreadsheetConfig
+from utils.jira_client import JiraClient
+from utils.spreadsheet_manager import SpreadsheetManager
 
 class JiraSpreadsheetSync:
     """Main class for synchronizing Jira with spreadsheets"""

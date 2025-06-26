@@ -3,7 +3,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 from typing import List, Dict, Optional
-from config import SpreadsheetConfig
+from .config import SpreadsheetConfig
 
 class SpreadsheetManager:
     """Manager for Excel spreadsheet operations"""

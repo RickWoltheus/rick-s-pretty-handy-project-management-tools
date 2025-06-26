@@ -6,8 +6,8 @@ Checks if all required fields and configurations are properly set up for the enh
 
 import sys
 from collections import defaultdict
-from config import JiraConfig
-from jira_client import JiraClient
+from .config import JiraConfig
+from .jira_client import JiraClient
 
 class JiraSetupValidator:
     """Validates Jira setup for optimal sync performance"""

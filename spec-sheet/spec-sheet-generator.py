@@ -10,8 +10,8 @@ import os
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
-from config import JiraConfig, SpreadsheetConfig
-from jira_client import JiraClient
+from utils.config import JiraConfig, SpreadsheetConfig
+from utils.jira_client import JiraClient
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 import math

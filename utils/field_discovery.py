@@ -8,8 +8,8 @@ import sys
 import os
 import re
 from typing import List, Dict, Optional
-from config import JiraConfig
-from jira_client import JiraClient
+from .config import JiraConfig
+from .jira_client import JiraClient
 
 class FieldDiscovery:
     """Interactive field discovery and configuration tool"""

@@ -63,19 +63,19 @@ pip install -r requirements.txt
 Jira uses custom field IDs for story points and many other fields. Use the interactive field discovery tool:
 
 ```bash
-python field_discovery.py
+python utils/field_discovery.py
 ```
 
 Or for quick Story Points discovery:
 
 ```bash
-python field_discovery.py --story-points
+python utils/field_discovery.py --story-points
 ```
 
 Or find any specific field:
 
 ```bash
-python field_discovery.py --find "Epic Link"
+python utils/field_discovery.py --find "Epic Link"
 ```
 
 The tool will automatically offer to update your `.env` file with the discovered field IDs.
@@ -222,8 +222,8 @@ Run a connection test:
 
 ```bash
 python -c "
-from config import JiraConfig
-from jira_client import JiraClient
+from utils.config import JiraConfig
+from utils.jira_client import JiraClient
 config = JiraConfig()
 client = JiraClient(config)
 client.test_connection()

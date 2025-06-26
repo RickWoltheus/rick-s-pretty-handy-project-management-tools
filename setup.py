@@ -113,8 +113,8 @@ def test_configuration():
     print("\n🔍 Testing Jira connection...")
     
     try:
-        from config import JiraConfig
-        from jira_client import JiraClient
+        from utils.config import JiraConfig
+        from utils.jira_client import JiraClient
         
         config = JiraConfig()
         client = JiraClient(config)

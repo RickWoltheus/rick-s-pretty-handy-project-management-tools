@@ -34,7 +34,7 @@ class MenuSystem:
             "3": {
                 "name": "🔍 Validate JIRA Setup",
                 "description": "Check JIRA configuration and field mappings",
-                "script": "validate_jira_setup.py",
+                "script": "utils/validate_jira_setup.py",
                 "function": self._run_validation
             },
             "4": {
@@ -46,7 +46,7 @@ class MenuSystem:
             "5": {
                 "name": "🔧 Discover JIRA Fields",
                 "description": "Interactive tool to find and configure any JIRA custom field",
-                "script": "field_discovery.py",
+                "script": "utils/field_discovery.py",
                 "function": self._run_field_discovery
             },
             "6": {
@@ -141,7 +141,7 @@ class MenuSystem:
     
     def _run_validation(self):
         """Run JIRA setup validation"""
-        if not self._check_file_exists("validate_jira_setup.py"):
+        if not self._check_file_exists("utils/validate_jira_setup.py"):
             return
         
         print("Starting JIRA Setup Validation...")
@@ -152,7 +152,7 @@ class MenuSystem:
         print("• Label configurations")
         print()
         
-        subprocess.run([sys.executable, "validate_jira_setup.py"], check=True)
+        subprocess.run([sys.executable, "utils/validate_jira_setup.py"], check=True)
     
     def _run_setup(self):
         """Run setup wizard"""
@@ -170,7 +170,7 @@ class MenuSystem:
     
     def _run_field_discovery(self):
         """Run the interactive field discovery tool"""
-        if not self._check_file_exists("field_discovery.py"):
+        if not self._check_file_exists("utils/field_discovery.py"):
             return
         
         print("Starting Interactive JIRA Field Discovery...")
@@ -181,7 +181,7 @@ class MenuSystem:
         print("• Update environment configuration automatically")
         print()
         
-        subprocess.run([sys.executable, "field_discovery.py"], check=True)
+        subprocess.run([sys.executable, "utils/field_discovery.py"], check=True)
     
     def _show_config(self):
         """Display current configuration"""
