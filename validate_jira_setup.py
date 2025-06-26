@@ -148,7 +148,7 @@ class JiraSetupValidator:
             jql = f'project = {self.jira_config.project_key} AND issuetype = Story'
             params = {
                 'jql': jql,
-                'fields': f'summary,labels,priority,{self.jira_config.story_points_field},customfield_10273',
+                'fields': f'summary,labels,priority,{self.jira_config.story_points_field},{self.jira_config.type_of_work_field}',
                 'maxResults': 100
             }
             
@@ -224,7 +224,7 @@ class JiraSetupValidator:
         """Validate Type of work field and risk profile configuration"""
         print("\n🏷️  Validating Type of Work Field...")
         
-        type_of_work_field = "customfield_10273"  # Type of work field
+        type_of_work_field = self.jira_config.type_of_work_field
         stories_with_type_of_work = 0
         work_type_usage = defaultdict(int)
         

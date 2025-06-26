@@ -17,6 +17,10 @@ class JiraConfig:
         # Common values: customfield_10016, customfield_10002, customfield_10008
         self.story_points_field = os.getenv('JIRA_STORY_POINTS_FIELD', 'customfield_10016')
         
+        # Type of Work field ID - used for determining risk profiles
+        # Common values: customfield_10273, customfield_10020, customfield_10030
+        self.type_of_work_field = os.getenv('JIRA_TYPE_OF_WORK_FIELD', 'customfield_10273')
+        
         # Validate required settings
         self.validate()
     

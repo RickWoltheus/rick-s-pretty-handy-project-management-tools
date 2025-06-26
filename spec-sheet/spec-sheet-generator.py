@@ -2,6 +2,7 @@
 """
 Enhanced Jira to Spec Sheet Sync Tool
 Syncs Jira epics and stories with the existing sophisticated pricing structure
+Now includes sprint planning and team composition features
 """
 
 import sys
@@ -13,6 +14,53 @@ from config import JiraConfig, SpreadsheetConfig
 from jira_client import JiraClient
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+import math
+
+# Team composition and sprint planning classes
+class TeamMember:
+    """Represents a team member with their role and capacity"""
+    def __init__(self, role: str, fte: float, story_points_per_sprint: float, hourly_rate: float = 95.37):
+        self.role = role
+        self.fte = fte  # Full Time Equivalent (0.0 to 1.0)
+        self.base_story_points_per_sprint = story_points_per_sprint
+        self.hourly_rate = hourly_rate
+        self.effective_velocity = story_points_per_sprint * fte
+    
+    def __str__(self):
+        return f"{self.role} ({self.fte} FTE): {self.effective_velocity:.1f} SP/sprint"
+
+class Team:
+    """Represents a development team with various roles and capacities"""
+    def __init__(self, name: str = "Development Team"):
+        self.name = name
+        self.members: List[TeamMember] = []
+        self.sprint_length_weeks = 2  # Default 2-week sprints
+        self.sprint_overhead = 0.15   # 15% overhead for meetings, planning, etc.
+    
+    def add_member(self, member: TeamMember):
+        """Add a team member"""
+        self.members.append(member)
+    
+    def get_total_velocity(self) -> float:
+        """Calculate total team velocity per sprint"""
+        total_velocity = sum(member.effective_velocity for member in self.members)
+        # Apply sprint overhead reduction
+        return total_velocity * (1 - self.sprint_overhead)
+    
+    def get_total_fte(self) -> float:
+        """Get total FTE of the team"""
+        return sum(member.fte for member in self.members)
+    
+    def get_composition_summary(self) -> str:
+        """Get a summary of team composition"""
+        if not self.members:
+            return "Empty team"
+        
+        summary = f"{self.name} ({self.get_total_fte():.1f} total FTE):\n"
+        for member in self.members:
+            summary += f"  • {member}\n"
+        summary += f"Total velocity: {self.get_total_velocity():.1f} SP/sprint"
+        return summary
 
 class EnhancedSpecSheetSync:
     """Enhanced class for synchronizing Jira with the sophisticated spec sheet structure"""
@@ -30,7 +78,7 @@ class EnhancedSpecSheetSync:
             self.dod_impact_total = 0.63  # 63% total DoD impact
             
             # Type of work field configuration
-            self.type_of_work_field = "customfield_10273"  # Type of work field
+            self.type_of_work_field = self.jira_config.type_of_work_field
             self.risk_priority = {  # Higher number = higher risk (takes priority)
                 'proven': 1,
                 'experimental': 2,
@@ -38,9 +86,335 @@ class EnhancedSpecSheetSync:
                 'dependent': 3  # Alternative spelling
             }
             
+            # Sprint planning configuration
+            self.sprint_planning_enabled = True
+            self.default_teams = self._create_default_teams()
+            
         except Exception as e:
             print(f"❌ Configuration error: {e}")
             sys.exit(1)
+    
+    def _create_default_teams(self) -> Dict[str, Team]:
+        """Create default team compositions for analysis"""
+        teams = {}
+        
+        # Small team
+        small_team = Team("Small Team")
+        small_team.add_member(TeamMember("Senior Developer", 1.0, 8))
+        small_team.add_member(TeamMember("Junior Developer", 1.0, 5))
+        small_team.add_member(TeamMember("Designer", 0.5, 6))
+        teams["small"] = small_team
+        
+        # Medium team
+        medium_team = Team("Medium Team")
+        medium_team.add_member(TeamMember("Tech Lead", 1.0, 10))
+        medium_team.add_member(TeamMember("Senior Developer", 2.0, 8))
+        medium_team.add_member(TeamMember("Junior Developer", 1.0, 5))
+        medium_team.add_member(TeamMember("Designer", 1.0, 6))
+        medium_team.add_member(TeamMember("QA Engineer", 0.5, 4))
+        teams["medium"] = medium_team
+        
+        # Large team
+        large_team = Team("Large Team")
+        large_team.add_member(TeamMember("Tech Lead", 1.0, 10))
+        large_team.add_member(TeamMember("Senior Developer", 3.0, 8))
+        large_team.add_member(TeamMember("Mid Developer", 2.0, 6))
+        large_team.add_member(TeamMember("Junior Developer", 2.0, 5))
+        large_team.add_member(TeamMember("Designer", 1.0, 6))
+        large_team.add_member(TeamMember("QA Engineer", 1.0, 4))
+        large_team.add_member(TeamMember("DevOps Engineer", 0.5, 7))
+        teams["large"] = large_team
+        
+        return teams
+    
+    def calculate_sprint_estimates(self, total_story_points: float, team: Team) -> Dict[str, any]:
+        """Calculate sprint estimates for a given team and story points"""
+        team_velocity = team.get_total_velocity()
+        
+        if team_velocity <= 0:
+            return {
+                'sprints': 0,
+                'weeks': 0,
+                'months': 0,
+                'team_velocity': 0,
+                'error': 'Team has no effective velocity'
+            }
+        
+        sprints_needed = math.ceil(total_story_points / team_velocity)
+        weeks_needed = sprints_needed * team.sprint_length_weeks
+        months_needed = weeks_needed / 4.33  # Average weeks per month
+        
+        return {
+            'sprints': sprints_needed,
+            'weeks': weeks_needed,
+            'months': months_needed,
+            'team_velocity': team_velocity,
+            'team_composition': team.get_composition_summary(),
+            'total_story_points': total_story_points,
+            'story_points_per_sprint': team_velocity
+        }
+    
+    def compare_team_options(self, total_story_points: float) -> Dict[str, Dict[str, any]]:
+        """Compare different team compositions and their impact on timeline"""
+        comparison = {}
+        
+        print(f"\n📊 Sprint Planning Analysis for {total_story_points} story points")
+        print("=" * 60)
+        
+        for team_name, team in self.default_teams.items():
+            estimates = self.calculate_sprint_estimates(total_story_points, team)
+            comparison[team_name] = estimates
+            
+            print(f"\n{team.name}:")
+            print(f"  Team Size: {team.get_total_fte():.1f} FTE")
+            print(f"  Velocity: {estimates['team_velocity']:.1f} SP/sprint")
+            print(f"  Duration: {estimates['sprints']} sprints ({estimates['weeks']} weeks, {estimates['months']:.1f} months)")
+            print(f"  Team: {len(team.members)} people")
+        
+        return comparison
+    
+    def create_custom_team(self, team_composition: List[Dict]) -> Team:
+        """Create a custom team from a list of team member specifications"""
+        custom_team = Team("Custom Team")
+        
+        for member_spec in team_composition:
+            role = member_spec.get('role', 'Developer')
+            fte = member_spec.get('fte', 1.0)
+            velocity = member_spec.get('story_points_per_sprint', 6)
+            hourly_rate = member_spec.get('hourly_rate', 95.37)
+            
+            member = TeamMember(role, fte, velocity, hourly_rate)
+            custom_team.add_member(member)
+        
+        return custom_team
+    
+    def generate_sprint_planning_report(self, epics: List[Dict] = None) -> Dict[str, any]:
+        """Generate comprehensive sprint planning report"""
+        if epics is None:
+            epics = self.jira_client.get_epics()
+        
+        # Calculate total story points across all epics
+        total_story_points = 0
+        epic_breakdown = {}
+        
+        for epic in epics:
+            epic_key = epic['key']
+            stories = self.jira_client.get_stories_for_epic(epic_key)
+            epic_points = sum(self.jira_client.get_story_points(story) or 0 for story in stories)
+            epic_breakdown[epic_key] = {
+                'summary': epic['fields']['summary'],
+                'story_points': epic_points,
+                'story_count': len(stories)
+            }
+            total_story_points += epic_points
+        
+        # Compare team options
+        team_comparison = self.compare_team_options(total_story_points)
+        
+        # Risk analysis based on story types
+        risk_breakdown = self._analyze_risk_distribution(epics)
+        
+        return {
+            'total_story_points': total_story_points,
+            'epic_breakdown': epic_breakdown,
+            'team_comparison': team_comparison,
+            'risk_breakdown': risk_breakdown,
+            'recommendations': self._generate_recommendations(total_story_points, team_comparison, risk_breakdown)
+        }
+    
+    def _analyze_risk_distribution(self, epics: List[Dict]) -> Dict[str, any]:
+        """Analyze the distribution of risk profiles across stories"""
+        risk_counts = {'proven': 0, 'experimental': 0, 'dependant': 0}
+        risk_story_points = {'proven': 0, 'experimental': 0, 'dependant': 0}
+        
+        for epic in epics:
+            stories = self.jira_client.get_stories_for_epic(epic['key'])
+            for story in stories:
+                risk_profile = self.determine_risk_profile(story)
+                story_points = self.jira_client.get_story_points(story) or 0
+                
+                risk_counts[risk_profile] += 1
+                risk_story_points[risk_profile] += story_points
+        
+        total_stories = sum(risk_counts.values())
+        total_points = sum(risk_story_points.values())
+        
+        return {
+            'counts': risk_counts,
+            'story_points': risk_story_points,
+            'percentages': {
+                risk: (count / total_stories * 100) if total_stories > 0 else 0
+                for risk, count in risk_counts.items()
+            },
+            'story_point_percentages': {
+                risk: (points / total_points * 100) if total_points > 0 else 0
+                for risk, points in risk_story_points.items()
+            }
+        }
+    
+    def _generate_recommendations(self, total_story_points: float, team_comparison: Dict, risk_breakdown: Dict) -> List[str]:
+        """Generate recommendations based on analysis"""
+        recommendations = []
+        
+        # Timeline recommendations
+        small_sprints = team_comparison.get('small', {}).get('sprints', 0)
+        large_sprints = team_comparison.get('large', {}).get('sprints', 0)
+        
+        if small_sprints > 0 and large_sprints > 0:
+            time_saved = small_sprints - large_sprints
+            if time_saved > 4:
+                recommendations.append(f"Consider larger team - saves {time_saved} sprints ({time_saved * 2} weeks)")
+        
+        # Risk-based recommendations
+        experimental_pct = risk_breakdown.get('story_point_percentages', {}).get('experimental', 0)
+        dependant_pct = risk_breakdown.get('story_point_percentages', {}).get('dependant', 0)
+        
+        if experimental_pct > 30:
+            recommendations.append("High experimental work (>30%) - consider prototyping phase")
+        
+        if dependant_pct > 20:
+            recommendations.append("Significant dependent work (>20%) - ensure external dependencies are ready")
+        
+        # Story points recommendations
+        if total_story_points > 100:
+            recommendations.append("Large project - consider breaking into phases or releases")
+        
+        if total_story_points < 20:
+            recommendations.append("Small project - single developer might be sufficient")
+        
+        return recommendations
+
+    def add_sprint_planning_sheet(self):
+        """Add a new sheet for sprint planning analysis"""
+        sheet_name = 'Sprint Planning'
+        
+        # Remove existing sheet if it exists
+        if sheet_name in self.workbook.sheetnames:
+            self.workbook.remove(self.workbook[sheet_name])
+        
+        # Create new sheet
+        ws = self.workbook.create_sheet(sheet_name)
+        
+        # Generate sprint planning report
+        report = self.generate_sprint_planning_report()
+        
+        # Set up headers and content
+        self._setup_sprint_planning_sheet(ws, report)
+        
+        # Save workbook
+        self.workbook.save(self.spec_sheet_path)
+        print(f"✅ Added sprint planning analysis to {sheet_name} sheet")
+    
+    def _setup_sprint_planning_sheet(self, ws, report: Dict):
+        """Set up the sprint planning sheet with analysis data"""
+        current_row = 1
+        
+        # Title
+        title_cell = ws.cell(row=current_row, column=1)
+        title_cell.value = "Sprint Planning & Team Composition Analysis"
+        title_cell.font = Font(bold=True, size=16)
+        current_row += 3
+        
+        # Project Summary
+        ws.cell(row=current_row, column=1).value = "Project Overview"
+        ws.cell(row=current_row, column=1).font = Font(bold=True, size=14)
+        current_row += 1
+        
+        ws.cell(row=current_row, column=1).value = "Total Story Points:"
+        ws.cell(row=current_row, column=2).value = report['total_story_points']
+        current_row += 1
+        
+        ws.cell(row=current_row, column=1).value = "Number of Epics:"
+        ws.cell(row=current_row, column=2).value = len(report['epic_breakdown'])
+        current_row += 2
+        
+        # Epic Breakdown
+        ws.cell(row=current_row, column=1).value = "Epic Breakdown"
+        ws.cell(row=current_row, column=1).font = Font(bold=True, size=12)
+        current_row += 1
+        
+        # Epic headers
+        headers = ["Epic Key", "Summary", "Story Points", "Story Count"]
+        for i, header in enumerate(headers, 1):
+            cell = ws.cell(row=current_row, column=i)
+            cell.value = header
+            cell.font = Font(bold=True)
+        current_row += 1
+        
+        # Epic data
+        for epic_key, epic_data in report['epic_breakdown'].items():
+            ws.cell(row=current_row, column=1).value = epic_key
+            ws.cell(row=current_row, column=2).value = epic_data['summary']
+            ws.cell(row=current_row, column=3).value = epic_data['story_points']
+            ws.cell(row=current_row, column=4).value = epic_data['story_count']
+            current_row += 1
+        
+        current_row += 2
+        
+        # Team Comparison
+        ws.cell(row=current_row, column=1).value = "Team Composition Comparison"
+        ws.cell(row=current_row, column=1).font = Font(bold=True, size=14)
+        current_row += 1
+        
+        # Team comparison headers
+        team_headers = ["Team Size", "Total FTE", "Velocity (SP/sprint)", "Sprints Needed", "Weeks", "Months"]
+        for i, header in enumerate(team_headers, 2):
+            cell = ws.cell(row=current_row, column=i)
+            cell.value = header
+            cell.font = Font(bold=True)
+        current_row += 1
+        
+        # Team comparison data
+        for team_name, estimates in report['team_comparison'].items():
+            ws.cell(row=current_row, column=1).value = team_name.title()
+            ws.cell(row=current_row, column=2).value = len(self.default_teams[team_name].members)
+            ws.cell(row=current_row, column=3).value = f"{self.default_teams[team_name].get_total_fte():.1f}"
+            ws.cell(row=current_row, column=4).value = f"{estimates['team_velocity']:.1f}"
+            ws.cell(row=current_row, column=5).value = estimates['sprints']
+            ws.cell(row=current_row, column=6).value = estimates['weeks']
+            ws.cell(row=current_row, column=7).value = f"{estimates['months']:.1f}"
+            current_row += 1
+        
+        current_row += 2
+        
+        # Risk Analysis
+        ws.cell(row=current_row, column=1).value = "Risk Profile Analysis"
+        ws.cell(row=current_row, column=1).font = Font(bold=True, size=14)
+        current_row += 1
+        
+        # Risk headers
+        risk_headers = ["Risk Profile", "Stories", "Story Points", "% of Stories", "% of Story Points"]
+        for i, header in enumerate(risk_headers, 1):
+            cell = ws.cell(row=current_row, column=i)
+            cell.value = header
+            cell.font = Font(bold=True)
+        current_row += 1
+        
+        # Risk data
+        for risk_profile in ['proven', 'experimental', 'dependant']:
+            ws.cell(row=current_row, column=1).value = risk_profile.title()
+            ws.cell(row=current_row, column=2).value = report['risk_breakdown']['counts'][risk_profile]
+            ws.cell(row=current_row, column=3).value = report['risk_breakdown']['story_points'][risk_profile]
+            ws.cell(row=current_row, column=4).value = f"{report['risk_breakdown']['percentages'][risk_profile]:.1f}%"
+            ws.cell(row=current_row, column=5).value = f"{report['risk_breakdown']['story_point_percentages'][risk_profile]:.1f}%"
+            current_row += 1
+        
+        current_row += 2
+        
+        # Recommendations
+        if report['recommendations']:
+            ws.cell(row=current_row, column=1).value = "Recommendations"
+            ws.cell(row=current_row, column=1).font = Font(bold=True, size=14)
+            current_row += 1
+            
+            for i, recommendation in enumerate(report['recommendations'], 1):
+                ws.cell(row=current_row, column=1).value = f"{i}. {recommendation}"
+                current_row += 1
+        
+        # Adjust column widths
+        column_widths = [25, 50, 15, 15, 15, 15, 15]
+        for i, width in enumerate(column_widths, 1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
     
     def load_spec_sheet_structure(self):
         """Load the existing spec sheet or create a new one"""
@@ -562,14 +936,29 @@ class EnhancedSpecSheetSync:
         return True
     
     def sync_all_sheets(self):
-        """Sync to the main scope sheet only - Jira as single source of truth"""
+        """Sync to all sheets - Jira as single source of truth"""
+        # Sync the main scope sheet
         sheet_name = 'Scope (Quantity)'
         
         if sheet_name in self.workbook.sheetnames:
             print(f"\n🔄 Regenerating: {sheet_name}")
-            self.sync_to_scope_sheet(sheet_name)
+            success = self.sync_to_scope_sheet(sheet_name)
+            
+            # Add sprint planning analysis if main sync successful
+            if success and self.sprint_planning_enabled:
+                try:
+                    print(f"\n🔄 Adding sprint planning analysis...")
+                    self.add_sprint_planning_sheet()
+                    print("✅ Sprint planning analysis added")
+                except Exception as e:
+                    print(f"⚠️  Warning: Could not add sprint planning sheet: {e}")
+            
+
+                
         else:
             print(f"❌ Sheet '{sheet_name}' not found in workbook")
+    
+
 
 def main():
     """Main entry point"""

@@ -58,18 +58,32 @@ pip install -r requirements.txt
    JIRA_PROJECT_KEY=PROJ
    ```
 
-### 4. Find Your Story Points Field ID
+### 4. Discover JIRA Custom Fields
 
-Jira uses custom field IDs for story points. Run this command to find yours:
+Jira uses custom field IDs for story points and many other fields. Use the interactive field discovery tool:
+
+```bash
+python field_discovery.py
+```
+
+Or for quick Story Points discovery:
+
+```bash
+python field_discovery.py --story-points
+```
+
+Or find any specific field:
+
+```bash
+python field_discovery.py --find "Epic Link"
+```
+
+The tool will automatically offer to update your `.env` file with the discovered field IDs.
+
+**Legacy Support**: The old method still works:
 
 ```bash
 python jira_sync.py --find-field
-```
-
-Update your `.env` file with the found field ID:
-
-```bash
-JIRA_STORY_POINTS_FIELD=customfield_10016
 ```
 
 ### 5. Customize Spreadsheet Settings (Optional)
@@ -93,6 +107,26 @@ COST_PER_STORY_POINT=150.0
 ```
 
 ## Usage
+
+### Quick Start with Menu System 🚀
+
+The easiest way to get started is using the interactive menu system:
+
+```bash
+python start.py
+```
+
+This will launch an interactive menu that provides access to all available tools:
+
+- **Enhanced Spec Sheet Generator** - Generate sophisticated spec sheets with risk-based pricing
+- **Basic JIRA Sync** - Simple sync of JIRA epics and stories to spreadsheet
+- **Validate JIRA Setup** - Check JIRA configuration and field mappings
+- **Setup & Configuration** - Configure JIRA connection and environment settings
+- **Discover JIRA Fields** - Interactive tool to find and configure any JIRA custom field
+- **View Configuration** - Display current environment configuration
+- **Show Documentation** - Access helpful guides and documentation
+
+The menu system handles all the complexity of running different tools and provides helpful descriptions and error handling.
 
 ### Basic Sync (Simple System)
 

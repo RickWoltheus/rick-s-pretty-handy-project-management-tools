@@ -55,7 +55,7 @@ class JiraClient:
             try:
                 params = {
                     'jql': f'{jql} AND project = {self.config.project_key}',
-                    'fields': f'summary,description,status,{self.config.story_points_field}',
+                    'fields': f'summary,description,status,labels,priority,{self.config.story_points_field},{self.config.type_of_work_field}',
                     'maxResults': 100
                 }
                 

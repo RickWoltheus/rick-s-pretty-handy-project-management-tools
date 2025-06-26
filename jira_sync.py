@@ -138,6 +138,8 @@ class JiraSpreadsheetSync:
     def find_story_points_field(self):
         """Helper function to find the correct story points field ID"""
         print("🔍 Searching for Story Points custom field...")
+        print("ℹ️  Note: Consider using the new field discovery tool: python field_discovery.py")
+        print()
         
         field_id = self.jira_client.get_custom_field_id("Story Points")
         if field_id:
@@ -146,6 +148,9 @@ class JiraSpreadsheetSync:
         else:
             print("❌ Could not find Story Points field")
             print("Please check your Jira instance and ensure the field exists")
+            print()
+            print("💡 Try the enhanced field discovery tool for more options:")
+            print("   python field_discovery.py --story-points")
 
 def main():
     """Main entry point"""

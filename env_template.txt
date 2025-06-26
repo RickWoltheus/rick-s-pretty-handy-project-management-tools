@@ -9,6 +9,11 @@ JIRA_PROJECT_KEY=PROJ
 # Run with --find-field to discover your field ID
 JIRA_STORY_POINTS_FIELD=customfield_10016
 
+# Type of Work Custom Field ID (for risk profile determination)
+# Common values: customfield_10273, customfield_10020, customfield_10030
+# This field should contain values like: Proven, Experimental, Dependant
+JIRA_TYPE_OF_WORK_FIELD=customfield_10273
+
 # Spreadsheet Configuration
 EXCEL_PATH=jira_cost_estimation.xlsx
 EXCEL_SHEET_NAME=Cost Estimation
