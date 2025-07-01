@@ -193,8 +193,9 @@ class TestEnhancedSpecSheetSync:
         sync.jira_client = Mock()
         sync.jira_config = Mock()
         sync.settings = {'base_story_point_price': 100.0, 'experimental_variance': 0.3, 'hourly_rate': 85.0}
+        sync.dod_impact_total = 0.0  # Set to 0 for predictable test results
         
-        # Test proven pricing
+        # Test proven pricing (without DoD impacts, should be 5 * 100 = 500)
         prices = sync.calculate_prices(5, 'proven')
         assert prices['fixed'] == 500.0
         
@@ -203,9 +204,9 @@ class TestEnhancedSpecSheetSync:
         assert prices['minimum'] == 350.0  # 500 * 0.7
         assert prices['maximum'] == 650.0  # 500 * 1.3
         
-        # Test dependant pricing
+        # Test dependant pricing (5 story points * 8 hours/SP * 85/hour = 3400)
         prices = sync.calculate_prices(5, 'dependant')
-        assert prices['hourly_estimate'] == 425.0  # 5 * 85
+        assert prices['hourly_estimate'] == 3400.0  # 5 * 8 * 85
     
     @patch.dict(os.environ, {
         'JIRA_DOMAIN': 'https://test.atlassian.net',
@@ -365,38 +366,53 @@ class TestEnhancedSpecSheetSync:
         assert priority == 'Won\'t Have'
 
     def test_sync_with_moscow_filtering_integration(self, spec_sheet_classes):
-        """Test integration of MoSCoW filtering in sync process"""
+        """Test integration of MoSCoW filtering in epic-story hierarchy sync process"""
         EnhancedSpecSheetSync = spec_sheet_classes['EnhancedSpecSheetSync']
         sync = EnhancedSpecSheetSync()
         sync.jira_client = Mock()
         sync.jira_config = Mock()
         sync.settings = {'base_story_point_price': 100.0, 'experimental_variance': 0.3, 'hourly_rate': 85.0}
         
-        # Mock epic and stories
-        mock_epics = [{'key': 'EPIC-1', 'fields': {'summary': 'Test Epic'}}]
+        # Mock epics and stories (epic-story hierarchy approach)
+        mock_epics = [
+            {
+                'key': 'EPIC-1',
+                'fields': {
+                    'summary': 'Test Epic',
+                    'issuetype': {'name': 'Epic'}
+                }
+            }
+        ]
+        
         mock_stories = [
             {
                 'key': 'PROJ-1',
                 'fields': {
                     'summary': 'Must have story',
                     'priority': {'name': 'Highest'},
-                    'labels': []
+                    'labels': [],
+                    'issuetype': {'name': 'Story'}
                 }
-            },
+            }
+        ]
+        
+        mock_everything_else = [
             {
                 'key': 'PROJ-2',
                 'fields': {
-                    'summary': 'Won\'t have story',
+                    'summary': 'Won\'t have bug',
                     'priority': {'name': 'Low'},
-                    'labels': []
+                    'labels': [],
+                    'issuetype': {'name': 'Bug'}
                 }
             }
         ]
         
         sync.selected_epics = mock_epics
+        sync.everything_else_items = mock_everything_else
         sync.selected_version = 'Test Version'
-        sync.jira_client.get_stories_for_epic.return_value = mock_stories
         sync.jira_client.get_story_points.return_value = 3
+        sync.jira_client.get_stories_for_epic.return_value = mock_stories
         
         # Mock workbook and worksheet
         from unittest.mock import MagicMock
@@ -417,8 +433,8 @@ class TestEnhancedSpecSheetSync:
         # Verify the workbook was saved (indicating successful sync)
         sync.workbook.save.assert_called_once()
         
-        # Verify that the method was called and filtering worked correctly
-        # The success of the sync indicates that filtering worked as expected
+        # Verify that get_stories_for_epic was called for each epic
+        sync.jira_client.get_stories_for_epic.assert_called_with('EPIC-1')
 
 
 class TestSpreadsheetGeneration:

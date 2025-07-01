@@ -166,6 +166,73 @@ class JiraClient:
                 print("\n⏹️  Selection cancelled. Using all epics.")
                 return self.get_epics(), "All Epics"
     
+
+
+    def get_issues_for_version(self, version_filter: str = None, issue_types: List[str] = None) -> List[Dict]:
+        """Fetch any issues directly from a version with specified issue types"""
+        if not issue_types:
+            issue_types = ['Story', 'Bug', 'Task']
+        
+        # Build issue type filter
+        if len(issue_types) == 1:
+            issue_type_filter = f'issuetype = {issue_types[0]}'
+        else:
+            issue_type_filter = f'issuetype IN ({", ".join(issue_types)})'
+        
+        jql = f'project = {self.config.project_key} AND {issue_type_filter}'
+        
+        # Add version filter if specified
+        if version_filter:
+            jql += f' AND fixVersion = "{version_filter}"'
+        
+        jql += ' ORDER BY created DESC'
+        
+        params = {
+            'jql': jql,
+            'fields': f'summary,description,status,labels,priority,issuetype,{self.config.story_points_field},{self.config.type_of_work_field}',
+            'maxResults': 200
+        }
+        
+        result = self._make_request('search', params)
+        return result.get('issues', [])
+
+    def get_all_issues_by_version_interactive(self) -> tuple[List[Dict], str]:
+        """Interactive method to select version and get ALL issues assigned to it"""
+        versions = self.get_available_versions()
+        
+        if not versions:
+            print("⚠️  No versions found in project. Using all issues.")
+            return self.get_issues_for_version(), "All Issues"
+        
+        print("\n📋 Available Versions/Releases:")
+        print("0. All Issues (no version filter)")
+        for i, version in enumerate(versions, 1):
+            version_details = self.get_version_details(version)
+            status = "✅ Released" if version_details and version_details.get('released') else "🚧 Unreleased"
+            release_date = version_details.get('releaseDate', 'No date') if version_details else 'No date'
+            print(f"{i}. {version} ({status}) - {release_date}")
+        
+        while True:
+            try:
+                choice = input(f"\nSelect version (0-{len(versions)}): ").strip()
+                choice_num = int(choice)
+                
+                if choice_num == 0:
+                    print("📊 Fetching all issues...")
+                    return self.get_issues_for_version(), "All Issues"
+                elif 1 <= choice_num <= len(versions):
+                    selected_version = versions[choice_num - 1]
+                    print(f"📊 Fetching all issues for version: {selected_version}")
+                    issues = self.get_issues_for_version(selected_version)
+                    return issues, selected_version
+                else:
+                    print("❌ Invalid choice. Please try again.")
+            except ValueError:
+                print("❌ Please enter a valid number.")
+            except KeyboardInterrupt:
+                print("\n⏹️  Selection cancelled. Using all issues.")
+                return self.get_issues_for_version(), "All Issues"
+    
     def test_connection(self) -> bool:
         """Test if the Jira connection is working"""
         try:

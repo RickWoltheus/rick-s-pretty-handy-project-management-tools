@@ -764,20 +764,24 @@ class EnhancedSpecSheetSync:
         return filtered_stories, priority_counts
     
     def sync_to_scope_sheet(self, sheet_name: str = 'Scope (Quantity)', selected_priorities: List[str] = None):
-        """Sync Jira data to the specified scope sheet - completely regenerate from Jira"""
+        """Sync Jira data to the specified scope sheet with epic-story hierarchy plus Everything Else section"""
         print(f"🔄 Regenerating sheet: {sheet_name} from Jira data")
         
-        # Use pre-selected epics if available, otherwise fetch all
+        # Use pre-selected epics and everything else items if available
         if hasattr(self, 'selected_epics') and self.selected_epics:
             epics = self.selected_epics
+            everything_else_items = getattr(self, 'everything_else_items', [])
             version_info = getattr(self, 'selected_version', 'Selected Version')
-            print(f"📋 Using {len(epics)} epic(s) from '{version_info}'")
+            print(f"📋 Using {len(epics)} epic(s) + {len(everything_else_items)} loose items from '{version_info}'")
         else:
+            # Fall back to getting epics without version filter
             epics = self.jira_client.get_epics()
+            everything_else_items = []
+            version_info = "All Epics"
             print(f"📋 Using all epics from project")
             
-        if not epics:
-            print("⚠️  No epics found")
+        if not epics and not everything_else_items:
+            print("⚠️  No epics or other items found")
             return False
         
         # Store MoSCoW filter info
@@ -802,33 +806,39 @@ class EnhancedSpecSheetSync:
         total_items = 0
         total_filtered_out = 0
         
+        # Process epics and their stories
+        print(f"\n📊 Processing {len(epics)} epics...")
         for epic in epics:
             epic_key = epic['key']
             epic_summary = epic['fields']['summary']
             
-            print(f"\n📊 Processing epic: {epic_key} - {epic_summary}")
+            print(f"\n🔵 Epic: {epic_key} - {epic_summary}")
             
             # Get stories for this epic
-            all_stories = self.jira_client.get_stories_for_epic(epic_key)
-            print(f"   Found {len(all_stories)} stories")
+            stories = self.jira_client.get_stories_for_epic(epic_key)
+            
+            if not stories:
+                print(f"   ⚠️  No stories found for epic {epic_key}")
+                continue
             
             # Filter stories by MoSCoW priorities if specified
             if selected_priorities and len(selected_priorities) < 4:
-                stories, priority_counts = self.filter_stories_by_moscow(all_stories, selected_priorities)
-                filtered_out_count = len(all_stories) - len(stories)
+                filtered_stories, priority_counts = self.filter_stories_by_moscow(stories, selected_priorities)
+                filtered_out_count = len(stories) - len(filtered_stories)
                 total_filtered_out += filtered_out_count
             else:
-                stories = all_stories
-                
-            if not stories:
-                print(f"   ⚠️  No stories match selected priorities - skipping epic")
+                filtered_stories = stories
+            
+            if not filtered_stories:
+                print(f"   ⚠️  No stories match selected priorities for epic {epic_key}")
                 continue
             
             # Add epic header
             self._add_epic_header(ws, current_row, epic_key, epic_summary)
             current_row += 1
             
-            for story in stories:
+            # Add stories under this epic
+            for story in filtered_stories:
                 story_key = story['key']
                 story_summary = story['fields']['summary']
                 story_points = self.jira_client.get_story_points(story) or 0
@@ -853,10 +863,56 @@ class EnhancedSpecSheetSync:
                 current_row += 1
                 total_items += 1
             
-            # Add spacing between epics
+            # Add spacing after each epic
             current_row += 1
         
-        # Add summary row at the end
+        # Process "Everything Else" items not tied to epics
+        if everything_else_items:
+            print(f"\n📊 Processing {len(everything_else_items)} loose items...")
+            
+            # Filter everything else items by MoSCoW priorities if specified
+            if selected_priorities and len(selected_priorities) < 4:
+                filtered_everything_else, priority_counts = self.filter_stories_by_moscow(everything_else_items, selected_priorities)
+                filtered_out_count = len(everything_else_items) - len(filtered_everything_else)
+                total_filtered_out += filtered_out_count
+            else:
+                filtered_everything_else = everything_else_items
+            
+            if filtered_everything_else:
+                # Add "Everything Else" section header
+                self._add_section_header(ws, current_row, "Everything Else (Not tied to epics)")
+                current_row += 1
+                
+                for item in filtered_everything_else:
+                    item_key = item['key']
+                    item_summary = item['fields']['summary']
+                    story_points = self.jira_client.get_story_points(item) or 0
+                    item_type = item['fields'].get('issuetype', {}).get('name', 'Issue')
+                    
+                    # Determine risk profile and pricing
+                    risk_profile = self.determine_risk_profile(item)
+                    moscow_priority = self.get_moscow_priority(item)
+                    prices = self.calculate_prices(story_points, risk_profile)
+                    
+                    print(f"   - {item_key} ({item_type}): {story_points} pts, {risk_profile}, {moscow_priority}")
+                    
+                    # Add item row with type prefix
+                    self._add_story_row(ws, current_row, {
+                        'key': item_key,
+                        'summary': f"[{item_type}] {item_summary}",
+                        'story_points': story_points,
+                        'moscow': moscow_priority,
+                        'risk_profile': risk_profile,
+                        'prices': prices
+                    })
+                    
+                    current_row += 1
+                    total_items += 1
+                
+                # Add spacing after everything else section
+                current_row += 1
+        
+        # Add summary section at the end
         if total_items > 0:
             self._add_summary_section(ws, current_row + 1, epics)
         
@@ -864,7 +920,7 @@ class EnhancedSpecSheetSync:
         self.workbook.save(self.spec_sheet_path)
         
         # Report results
-        filter_summary = f" (filtered out {total_filtered_out} stories)" if total_filtered_out > 0 else ""
+        filter_summary = f" (filtered out {total_filtered_out} items)" if total_filtered_out > 0 else ""
         print(f"\n✅ Sync completed! Generated {total_items} items in {sheet_name}{filter_summary}")
         
         return True
@@ -1041,6 +1097,19 @@ class EnhancedSpecSheetSync:
             ws.cell(row=row, column=10).value = story_data['story_points']  # Story points
             ws.cell(row=row, column=11).value = prices.get('hourly_estimate', 0)  # Hourly estimate
     
+    def _add_section_header(self, ws, row, section_title):
+        """Add a section header row for non-epic hierarchies"""
+        ws.cell(row=row, column=1).value = f"[SECTION] {section_title}"
+        
+        # Style the section header
+        section_font = Font(bold=True, color="000000")
+        section_fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+        
+        for col in range(1, 12):
+            cell = ws.cell(row=row, column=col)
+            cell.font = section_font
+            cell.fill = section_fill
+
     def test_connections(self) -> bool:
         """Test connections to Jira and spec sheet"""
         print("🔄 Testing connections...")
@@ -1093,20 +1162,43 @@ def main():
         print("\n❌ Connection test failed. Please check your configuration.")
         sys.exit(1)
     
-    # Allow user to select version/release
-    print("\n🔍 Select Version/Release to Sync:")
+    # Allow user to select version/release and get epics
+    print("\n🔍 Select Version/Release to get Epics:")
     try:
         epics, selected_version = sync.jira_client.get_epics_by_version_interactive()
         
         if not epics:
-            print(f"⚠️  No epics found for '{selected_version}'. Please check your version or try 'All Epics'.")
+            print(f"⚠️  No epics found for '{selected_version}'. Please check your selection.")
             return
         
         print(f"\n📊 Found {len(epics)} epic(s) for '{selected_version}'")
         
-        # Store selected version info for the sync
-        sync.selected_version = selected_version
+        # Get all issues for this version to find "Everything Else" items
+        print(f"\n🔍 Finding additional items not tied to epics...")
+        all_version_issues = sync.jira_client.get_issues_for_version(
+            selected_version if selected_version != "All Epics" else None,
+            ['Story', 'Bug', 'Task', 'Subtask']  # Include various issue types
+        )
+        
+        # Collect all story keys that are already linked to epics
+        linked_story_keys = set()
+        for epic in epics:
+            epic_stories = sync.jira_client.get_stories_for_epic(epic['key'])
+            for story in epic_stories:
+                linked_story_keys.add(story['key'])
+        
+        # Find items not linked to any epic
+        everything_else_items = []
+        for issue in all_version_issues:
+            if issue['key'] not in linked_story_keys:
+                everything_else_items.append(issue)
+        
+        print(f"📋 Found {len(everything_else_items)} additional items not tied to epics")
+        
+        # Store selected data for the sync
         sync.selected_epics = epics
+        sync.selected_version = selected_version
+        sync.everything_else_items = everything_else_items
         
     except KeyboardInterrupt:
         print("\n⏹️  Operation cancelled.")

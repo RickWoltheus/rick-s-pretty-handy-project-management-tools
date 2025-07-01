@@ -42,26 +42,44 @@ class MenuSystem:
                 "description": "Configure JIRA connection and environment settings",
                 "script": "setup.py",
                 "function": self._run_setup
-            },
+                        },
             "5": {
-                "name": "🔧 Discover JIRA Fields",
-                "description": "Interactive tool to find and configure any JIRA custom field",
-                "script": "utils/field_discovery.py",
-                "function": self._run_field_discovery
-            },
-            "6": {
                 "name": "📝 View Configuration",
                 "description": "Display current environment configuration",
                 "script": None,
                 "function": self._show_config
             },
-            "7": {
-                "name": "📚 Show Documentation",
+            "6": {
+                "name": "📚 Show Documentation", 
                 "description": "Display helpful guides and documentation",
                 "script": None,
                 "function": self._show_documentation
             },
+            "7": {
+                "name": "👥 Team Management",
+                "description": "Create and manage team members with persistent holiday storage",
+                "script": "team/team_manager.py",
+                "function": self._run_team_management
+            },
             "8": {
+                "name": "📅 Enhanced Timeline Generator",
+                "description": "Generate project timelines with team integration and visual absences",
+                "script": "timeline/enhanced_timeline_generator.py",
+                "function": self._run_enhanced_timeline
+            },
+            "9": {
+                "name": "📅 Timeline & Calendar Generator (Legacy)",
+                "description": "Original timeline generator with manual team setup",
+                "script": "timeline/timeline_generator.py",
+                "function": self._run_timeline_generator
+            },
+            "10": {
+                "name": "🎬 Timeline Demo",
+                "description": "Demo the timeline generator with pre-configured example",
+                "script": "timeline/demo_timeline.py", 
+                "function": self._run_timeline_demo
+            },
+            "11": {
                 "name": "🧪 Run Tests",
                 "description": "Execute the test suite to verify functionality",
                 "script": "run_tests.py",
@@ -86,7 +104,7 @@ class MenuSystem:
     def get_user_choice(self) -> str:
         """Get user's menu choice"""
         while True:
-            choice = input("Select an option (0-8): ").strip()
+            choice = input("Select an option (0-11): ").strip()
             if choice in list(self.tools.keys()) + ["0"]:
                 return choice
             print("❌ Invalid choice. Please select a valid option.")
@@ -174,20 +192,103 @@ class MenuSystem:
         
         subprocess.run([sys.executable, "setup.py"], check=True)
     
-    def _run_field_discovery(self):
-        """Run the interactive field discovery tool"""
-        if not self._check_file_exists("utils/field_discovery.py"):
+
+    
+    def _run_timeline_generator(self):
+        """Run the timeline and calendar generator"""
+        if not self._check_file_exists("timeline/timeline_generator.py"):
             return
         
-        print("Starting Interactive JIRA Field Discovery...")
-        print("This tool allows you to:")
-        print("• Search for any JIRA custom field by name")
-        print("• List all available custom fields")
-        print("• Find common fields (Story Points, Epic Link, etc.)")
-        print("• Update environment configuration automatically")
+        print("Starting Timeline & Calendar Generator...")
+        print("This tool provides:")
+        print("• Project timeline generation from specified dates")
+        print("• Team member capacity planning with FTE and skills")
+        print("• Dutch national holiday integration (via API)")
+        print("• Custom holiday management (company and personal)")
+        print("• Sprint planning with realistic capacity calculations")
+        print("• Calendar views with availability tracking")
+        print("• Excel workbook output with multiple sheets")
         print()
         
-        subprocess.run([sys.executable, "utils/field_discovery.py"], check=True)
+        # Run from timeline directory with full path
+        script_path = os.path.join("timeline", "timeline_generator.py")
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.getcwd()
+        
+        subprocess.run([sys.executable, script_path], env=env, check=True)
+    
+    def _run_team_management(self):
+        """Run the team management system"""
+        if not self._check_file_exists("team/team_manager.py"):
+            return
+        
+        print("Starting Team Management System...")
+        print("This tool provides:")
+        print("• Create and manage team members with persistent storage")
+        print("• Define individual availability and roles")
+        print("• Manage personal and company-wide holidays")
+        print("• Set story points capacity per team member")
+        print("• Store team data in JSON files for reuse")
+        print()
+        
+        # Run from team directory with full path
+        script_path = os.path.join("team", "team_manager.py")
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.getcwd()
+        
+        subprocess.run([sys.executable, script_path], env=env, check=True)
+    
+    def _run_enhanced_timeline(self):
+        """Run the enhanced timeline generator with team integration"""
+        if not self._check_file_exists("timeline/enhanced_timeline_generator.py"):
+            return
+        
+        print("Starting Enhanced Timeline Generator...")
+        print("This tool provides:")
+        print("• Loads team members from persistent storage")
+        print("• Visual representation of team absences")
+        print("• Daily capacity calculations with real team data")
+        print("• Enhanced Excel output showing who's away when")
+        print("• Project estimation based on actual team composition")
+        print("• Holiday management integrated with team members")
+        print()
+        
+        # Check if team members exist
+        team_folder = "team"
+        if not os.path.exists(team_folder) or not os.listdir(team_folder):
+            print("⚠️ No team members found!")
+            print("💡 Please create team members first using option 7 (Team Management)")
+            input("\nPress Enter to continue...")
+            return
+        
+        # Run from timeline directory with full path
+        script_path = os.path.join("timeline", "enhanced_timeline_generator.py")
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.getcwd()
+        
+        subprocess.run([sys.executable, script_path], env=env, check=True)
+    
+    def _run_timeline_demo(self):
+        """Run the timeline demo with pre-configured settings"""
+        if not self._check_file_exists("timeline/demo_timeline.py"):
+            return
+        
+        print("Starting Timeline Demo...")
+        print("This demo shows:")
+        print("• Pre-configured team of 4 members with different roles/skills")
+        print("• Dutch holiday integration for current and next year")
+        print("• Custom company holidays and personal time off")
+        print("• Realistic capacity calculations and sprint planning")
+        print("• Generated Excel workbook with timeline analysis")
+        print("• No user interaction required - runs automatically")
+        print()
+        
+        # Run from timeline directory with full path
+        script_path = os.path.join("timeline", "demo_timeline.py")
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.getcwd()
+        
+        subprocess.run([sys.executable, script_path], env=env, check=True)
     
     def _show_config(self):
         """Display current configuration"""
@@ -227,6 +328,7 @@ class MenuSystem:
             "README.md": "Main project documentation",
             "JIRA_MAPPING_GUIDE.md": "Guide for configuring JIRA field mappings",
             "SPRINT_PLANNING_GUIDE.md": "Sprint planning and team composition guide",
+            "timeline/TIMELINE_GUIDE.md": "Timeline and calendar management guide",
             "env_template.txt": "Environment configuration template"
         }
         

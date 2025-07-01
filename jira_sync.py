@@ -41,69 +41,60 @@ class JiraSpreadsheetSync:
             print(f"❌ Spreadsheet error: {e}")
             return False
     
-    def sync_data(self, version_filter: str = None, selected_priorities: List[str] = None) -> bool:
-        """Main sync function with optional version and MoSCoW priority filtering"""
+    def sync_data(self, epics: List[Dict], everything_else_items: List[Dict], version_info: str, selected_priorities: List[str] = None) -> bool:
+        """Main sync function with epic-story hierarchy plus Everything Else section"""
         print(f"\n🚀 Starting sync at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         try:
             # Load spreadsheet
             self.spreadsheet_manager.load_or_create_workbook()
             
-            # Get data from Jira with optional version filter
-            if version_filter:
-                print(f"📥 Fetching epics for version: {version_filter}")
-                epics = self.jira_client.get_epics(version_filter)
-                version_info = version_filter
-            else:
-                print("📥 Fetching all epics from Jira...")
-                epics = self.jira_client.get_epics()
-                version_info = "All Epics"
-            
-            if not epics:
-                print(f"⚠️  No epics found for '{version_info}'")
+            if not epics and not everything_else_items:
+                print(f"⚠️  No epics or other items found for '{version_info}'")
                 return False
             
-            print(f"📋 Found {len(epics)} epics for '{version_info}'")
+            print(f"📋 Processing {len(epics)} epics + {len(everything_else_items)} loose items for '{version_info}'")
             
             # Clear existing data
             self.spreadsheet_manager.clear_data_rows()
             
-            # Process each epic
             current_row = self.spreadsheet_config.data_start_row
             grand_total_points = 0
             grand_total_cost = 0
             total_filtered_out = 0
             
+            # Process epics and their stories
             for epic in epics:
                 epic_key = epic['key']
                 epic_summary = epic['fields']['summary']
                 
-                print(f"\n📊 Processing epic: {epic_key} - {epic_summary}")
+                print(f"\n🔵 Epic: {epic_key} - {epic_summary}")
                 
                 # Get stories for this epic
-                all_stories = self.jira_client.get_stories_for_epic(epic_key)
-                print(f"   Found {len(all_stories)} stories")
+                stories = self.jira_client.get_stories_for_epic(epic_key)
+                
+                if not stories:
+                    print(f"   ⚠️  No stories found for epic {epic_key}")
+                    continue
                 
                 # Filter stories by MoSCoW priorities if specified
                 if selected_priorities and len(selected_priorities) < 4:
-                    stories, priority_counts = self.filter_stories_by_moscow(all_stories, selected_priorities)
-                    filtered_out_count = len(all_stories) - len(stories)
+                    filtered_stories, priority_counts = self.filter_stories_by_moscow(stories, selected_priorities)
+                    filtered_out_count = len(stories) - len(filtered_stories)
                     total_filtered_out += filtered_out_count
                 else:
-                    stories = all_stories
-                    
-                if not stories:
-                    print(f"   ⚠️  No stories match selected priorities - skipping epic")
+                    filtered_stories = stories
+                
+                if not filtered_stories:
+                    print(f"   ⚠️  No stories match selected priorities for epic {epic_key}")
                     continue
                 
-                # Add epic header row
+                # Add epic header
                 self.spreadsheet_manager.add_epic_row(epic_key, epic_summary, current_row)
                 current_row += 1
                 
-                epic_total_points = 0
-                
-                # Process each story
-                for story in stories:
+                # Add stories under this epic
+                for story in filtered_stories:
                     story_key = story['key']
                     story_summary = story['fields']['summary']
                     story_points = self.jira_client.get_story_points(story)
@@ -117,23 +108,56 @@ class JiraSpreadsheetSync:
                     )
                     
                     if story_points:
-                        epic_total_points += story_points
+                        grand_total_points += story_points
                     
                     current_row += 1
                 
-                # Add epic summary row
-                if stories:
-                    self.spreadsheet_manager.add_epic_summary_row(
-                        epic_key, epic_total_points, current_row
-                    )
-                    current_row += 1
-                
-                # Add to grand totals
-                grand_total_points += epic_total_points
-                grand_total_cost += epic_total_points * self.spreadsheet_config.cost_per_story_point
-                
-                # Add spacing between epics
+                # Add spacing after each epic
                 current_row += 1
+            
+            # Process "Everything Else" items not tied to epics
+            if everything_else_items:
+                print(f"\n📊 Processing {len(everything_else_items)} loose items...")
+                
+                # Filter everything else items by MoSCoW priorities if specified
+                if selected_priorities and len(selected_priorities) < 4:
+                    filtered_everything_else, priority_counts = self.filter_stories_by_moscow(everything_else_items, selected_priorities)
+                    filtered_out_count = len(everything_else_items) - len(filtered_everything_else)
+                    total_filtered_out += filtered_out_count
+                else:
+                    filtered_everything_else = everything_else_items
+                
+                if filtered_everything_else:
+                    # Add "Everything Else" section header
+                    self.spreadsheet_manager.add_epic_row("EVERYTHING_ELSE", "Everything Else (Not tied to epics)", current_row)
+                    current_row += 1
+                    
+                    for item in filtered_everything_else:
+                        item_key = item['key']
+                        item_summary = item['fields']['summary']
+                        story_points = self.jira_client.get_story_points(item)
+                        item_type = item['fields'].get('issuetype', {}).get('name', 'Issue')
+                        moscow_priority = self.get_moscow_priority(item)
+                        
+                        print(f"   - {item_key} ({item_type}): {story_points or 0} points ({moscow_priority})")
+                        
+                        # Add item row with type prefix
+                        display_summary = f"[{item_type}] {item_summary}"
+                        self.spreadsheet_manager.add_story_row(
+                            item_key, display_summary, story_points, current_row
+                        )
+                        
+                        if story_points:
+                            grand_total_points += story_points
+                        
+                        current_row += 1
+                    
+                    # Add spacing after everything else section
+                    current_row += 1
+            
+            # Add grand totals
+            grand_total_cost = grand_total_points * self.spreadsheet_config.cost_per_story_point
+            current_row += 1
             
             # Add grand total
             self.spreadsheet_manager.add_grand_total_row(
@@ -144,7 +168,7 @@ class JiraSpreadsheetSync:
             self.spreadsheet_manager.save()
             
             # Report results
-            filter_summary = f" (filtered out {total_filtered_out} stories)" if total_filtered_out > 0 else ""
+            filter_summary = f" (filtered out {total_filtered_out} items)" if total_filtered_out > 0 else ""
             print(f"\n✅ Sync completed successfully!{filter_summary}")
             print(f"   📊 Total Story Points: {grand_total_points}")
             print(f"   💰 Total Estimated Cost: ${grand_total_cost:,.2f}")
@@ -304,44 +328,37 @@ def main():
         print("\n❌ Connection test failed. Please check your configuration.")
         sys.exit(1)
     
-    # Allow user to select version/release
-    selected_version = None
+    # Allow user to select version/release and get epics
     try:
-        # Ask if user wants to filter by version
-        use_version = input("\n🔍 Do you want to filter by a specific version/release? (y/N): ").strip().lower()
+        epics, selected_version = sync.jira_client.get_epics_by_version_interactive()
         
-        if use_version == 'y':
-            versions = sync.jira_client.get_available_versions()
-            
-            if not versions:
-                print("⚠️  No versions found in project. Using all epics.")
-            else:
-                print("\n📋 Available Versions/Releases:")
-                print("0. All Epics (no version filter)")
-                for i, version in enumerate(versions, 1):
-                    version_details = sync.jira_client.get_version_details(version)
-                    status = "✅ Released" if version_details and version_details.get('released') else "🚧 Unreleased"
-                    release_date = version_details.get('releaseDate', 'No date') if version_details else 'No date'
-                    print(f"{i}. {version} ({status}) - {release_date}")
-                
-                while True:
-                    try:
-                        choice = input(f"\nSelect version (0-{len(versions)}): ").strip()
-                        choice_num = int(choice)
-                        
-                        if choice_num == 0:
-                            break
-                        elif 1 <= choice_num <= len(versions):
-                            selected_version = versions[choice_num - 1]
-                            print(f"📊 Selected version: {selected_version}")
-                            break
-                        else:
-                            print("❌ Invalid choice. Please try again.")
-                    except ValueError:
-                        print("❌ Please enter a valid number.")
-                    except KeyboardInterrupt:
-                        print("\n⏹️  Selection cancelled. Using all epics.")
-                        break
+        if not epics:
+            print(f"⚠️  No epics found for '{selected_version}'. Please check your selection.")
+            return
+        
+        print(f"\n📊 Found {len(epics)} epic(s) for '{selected_version}'")
+        
+        # Get all issues for this version to find "Everything Else" items
+        print(f"\n🔍 Finding additional items not tied to epics...")
+        all_version_issues = sync.jira_client.get_issues_for_version(
+            selected_version if selected_version != "All Epics" else None,
+            ['Story', 'Bug', 'Task', 'Subtask']  # Include various issue types
+        )
+        
+        # Collect all story keys that are already linked to epics
+        linked_story_keys = set()
+        for epic in epics:
+            epic_stories = sync.jira_client.get_stories_for_epic(epic['key'])
+            for story in epic_stories:
+                linked_story_keys.add(story['key'])
+        
+        # Find items not linked to any epic
+        everything_else_items = []
+        for issue in all_version_issues:
+            if issue['key'] not in linked_story_keys:
+                everything_else_items.append(issue)
+        
+        print(f"📋 Found {len(everything_else_items)} additional items not tied to epics")
         
     except KeyboardInterrupt:
         print("\n⏹️  Operation cancelled.")
@@ -362,10 +379,9 @@ def main():
         selected_priorities = ['Must Have', 'Should Have', 'Could Have', "Won't Have"]
     
     # Perform sync
-    if sync.sync_data(selected_version, selected_priorities):
-        version_info = selected_version if selected_version else "All Epics"
+    if sync.sync_data(epics, everything_else_items, selected_version, selected_priorities):
         priority_filter = f" with {', '.join(selected_priorities)} priorities" if len(selected_priorities) < 4 else ""
-        print(f"\n🎉 All done! Synced '{version_info}'{priority_filter} to your spreadsheet.")
+        print(f"\n🎉 All done! Synced '{selected_version}'{priority_filter} to your spreadsheet.")
     else:
         print("\n💥 Sync failed. Please check the error messages above.")
         sys.exit(1)
