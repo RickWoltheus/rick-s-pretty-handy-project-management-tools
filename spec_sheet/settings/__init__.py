@@ -1,0 +1,1 @@
+# Settings package for spec sheet configuration management 

@@ -177,15 +177,17 @@ def test_workbook(temp_dir):
 @pytest.fixture
 def mock_spec_sheet_sync(mock_jira_client, test_workbook, temp_dir):
     """Mock EnhancedSpecSheetSync instance for testing"""
-    # Patch the class to use our mocks
-    with patch('spec-sheet.spec-sheet-generator.JiraClient') as mock_client_class:
-        with patch('spec-sheet.spec-sheet-generator.JiraConfig') as mock_config_class:
+    # Patch the classes at their correct import locations in the refactored code
+    with patch('utils.jira_client.JiraClient') as mock_client_class:
+        with patch('utils.config.JiraConfig') as mock_config_class:
             mock_client_class.return_value = mock_jira_client
             mock_config_class.return_value = mock_jira_client.config
             
             # Import after patching
             import sys
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+            project_root = os.path.dirname(os.path.dirname(__file__))
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
             
             from spec_sheet.spec_sheet_generator import EnhancedSpecSheetSync
             
@@ -197,22 +199,24 @@ def mock_spec_sheet_sync(mock_jira_client, test_workbook, temp_dir):
 
 @pytest.fixture
 def spec_sheet_classes():
-    """Import spec sheet generator classes - handles the hyphenated filename"""
+    """Import spec sheet generator classes from the new modular structure"""
     import sys
-    import importlib.util
+    import os
     
-    # Get the spec sheet generator module path
-    spec_file = os.path.join(os.path.dirname(__file__), '..', 'spec-sheet', 'spec-sheet-generator.py')
+    # Add the project root to Python path for imports
+    project_root = os.path.dirname(os.path.dirname(__file__))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
     
-    # Load module using importlib
-    spec = importlib.util.spec_from_file_location("spec_sheet_generator", spec_file)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Import from the new modular locations
+    from team.team_manager import TeamMember
+    from spec_sheet.sprint.sprint_planner import Team
+    from spec_sheet.spec_sheet_generator import EnhancedSpecSheetSync
     
     return {
-        'TeamMember': module.TeamMember,
-        'Team': module.Team,
-        'EnhancedSpecSheetSync': module.EnhancedSpecSheetSync
+        'TeamMember': TeamMember,
+        'Team': Team,
+        'EnhancedSpecSheetSync': EnhancedSpecSheetSync
     }
 
 @pytest.fixture

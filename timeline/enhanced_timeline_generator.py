@@ -18,15 +18,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import team management
 from team.team_manager import TeamManager, TeamMember
-from utils.config import JiraConfig
-from utils.jira_client import JiraClient
 
 # Import modular components
 from timeline.holiday_manager import HolidayManager
 from timeline.sprint_models import SprintCalculator
-from timeline.calendar_generator import CalendarGenerator
-from timeline.excel_generator import ExcelGenerator
-from timeline.spec_sheet_loader import SpecSheetLoader
+from timeline.timeline_orchestrator import TimelineOrchestrator
+from timeline.timeline_user_interface import TimelineUserInterface
+from timeline.jira_integration import JiraIntegration
 
 class EnhancedTimelineGenerator:
     """Enhanced timeline generator that loads team from persistent storage"""
@@ -34,26 +32,16 @@ class EnhancedTimelineGenerator:
     def __init__(self):
         self.team_manager = TeamManager()
         self.team_members: List[TeamMember] = []
-        self.project_start_date: Optional[date] = None
-        self.project_end_date: Optional[date] = None
         
         # Initialize modular components
         self.holiday_manager = HolidayManager()
         self.sprint_calculator = SprintCalculator(self.holiday_manager)
-        self.sprints = []
-        
-        # Try to connect to JIRA for integration
-        try:
-            self.jira_config = JiraConfig()
-            self.jira_client = JiraClient(self.jira_config)
-            self.jira_available = True
-            print("✅ JIRA integration available")
-        except:
-            self.jira_available = False
-            print("⚠️  JIRA not available - timeline will work without JIRA integration")
+        self.ui = TimelineUserInterface()
+        self.jira_integration = JiraIntegration()
+        self.orchestrator: Optional[TimelineOrchestrator] = None
     
     def load_team_from_storage(self) -> bool:
-        """Load team members from persistent storage"""
+        """Load team members from persistent storage and setup orchestrator"""
         self.team_members = self.team_manager.load_all_members()
         
         if not self.team_members:
@@ -68,110 +56,52 @@ class EnhancedTimelineGenerator:
         # Convert team member holidays to timeline holidays using holiday manager
         self.holiday_manager.add_team_holidays(self.team_members)
         
+        # Initialize orchestrator with loaded team
+        self.orchestrator = TimelineOrchestrator(
+            self.team_members, 
+            self.holiday_manager, 
+            self.sprint_calculator
+        )
+        
         return True
-    
-    def load_dutch_holidays(self, start_year: int, end_year: int):
-        """Load Dutch national holidays for the project timeline"""
-        self.holiday_manager.load_dutch_holidays(start_year, end_year)
-    
-    def generate_sprint_timeline(self, start_date: date, total_story_points: float, sprint_length_weeks: int = 2):
-        """Generate sprint timeline based on team capacity using sprint calculator"""
-        self.sprints = self.sprint_calculator.generate_sprint_timeline(
-            start_date, total_story_points, self.team_members, sprint_length_weeks
-        )
-        
-        if self.sprints:
-            self.project_start_date = start_date
-            self.project_end_date = self.sprints[-1].end_date
-        
-        return self.sprints
-    
-    def load_story_points_from_spec_sheet(self, spec_sheet_path: str = "spec-sheet.xlsx") -> float:
-        """Load total story points from existing spec sheet using SpecSheetLoader"""
-        return SpecSheetLoader.load_story_points_from_spec_sheet(spec_sheet_path)
-    
-    def save_timeline_workbook(self, filename: str = None):
-        """Save the complete timeline workbook using ExcelGenerator"""
-        # Create calendar generator for the Excel generator
-        calendar_generator = CalendarGenerator(self.holiday_manager, self.sprints)
-        
-        # Create Excel generator
-        excel_generator = ExcelGenerator(
-            self.team_members,
-            self.sprints,
-            self.holiday_manager,
-            calendar_generator,
-            self.project_start_date,
-            self.project_end_date
-        )
-        
-        # Generate the workbook
-        return excel_generator.create_timeline_workbook(filename)
     
 
     
     def run_interactive(self):
         """Run the enhanced timeline generator interactively"""
-        print("\n📅 ENHANCED TIMELINE GENERATOR")
-        print("=" * 50)
+        self.ui.display_timeline_header()
         
         # Load team from storage
         if not self.load_team_from_storage():
-            print("❌ Cannot continue without team members")
-            print("💡 Please create team members first using Team Management")
+            self.ui.display_no_team_members_error()
             return
         
         # Load story points from spec sheet
-        print("\n📊 Loading story points from spec sheet...")
-        total_story_points = self.load_story_points_from_spec_sheet()
+        self.ui.display_story_points_loading()
+        total_story_points = self.orchestrator.load_story_points_from_spec_sheet()
         
         if total_story_points <= 0:
-            print("❌ No story points found in spec sheet")
-            print("💡 Please generate a spec sheet first or ensure it contains story points")
+            self.ui.display_no_story_points_error()
             return
         
         # Get project start date
-        print(f"\n📅 Project Planning ({total_story_points} story points)")
-        try:
-            start_date_str = input("Project start date (YYYY-MM-DD): ").strip()
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            print("❌ Invalid date format")
+        self.ui.display_project_planning_header(total_story_points)
+        start_date = self.ui.get_project_start_date()
+        
+        if start_date is None:
             return
         
-        # Load Dutch holidays
-        start_year = start_date.year
-        end_year = start_year + 1  # Load holidays for current and next year
-        self.load_dutch_holidays(start_year, end_year)
-        
-        # Generate sprint timeline
-        print(f"\n🔄 Generating sprint timeline from {start_date}...")
-        self.generate_sprint_timeline(start_date, total_story_points)
-        
-        # Save timeline workbook
-        filename = self.save_timeline_workbook()
-        
-        print(f"\n✅ Enhanced timeline generation complete!")
-        print(f"📊 Timeline saved to: {filename}")
-        print(f"🎯 Project duration: {self.project_start_date} to {self.project_end_date}")
-        print(f"📈 Total sprints: {len(self.sprints)}")
-        print(f"👥 Team members: {len(self.team_members)}")
+        # Execute the full workflow using orchestrator
+        self.orchestrator.execute_full_workflow(start_date, total_story_points)
 
 def main():
     """Enhanced timeline generator main function"""
     generator = EnhancedTimelineGenerator()
+    ui = TimelineUserInterface()
     
     while True:
-        print("\n" + "=" * 50)
-        print("📅 ENHANCED TIMELINE GENERATOR")
-        print("=" * 50)
-        print("1. 📊 Generate Project Timeline")
-        print("2. 👥 View Team Members")
-        print("3. 🏖️  Manage Team (Create/Edit Members)")
-        print("0. 🚪 Back to Main Menu")
-        print("=" * 50)
-        
-        choice = input("Select option (0-3): ").strip()
+        ui.display_main_menu()
+        choice = ui.get_menu_choice()
         
         if choice == '0':
             break
@@ -183,7 +113,7 @@ def main():
             from team.team_manager import main as team_main
             team_main()
         else:
-            print("❌ Invalid choice")
+            ui.display_invalid_choice()
 
 if __name__ == "__main__":
     main() 

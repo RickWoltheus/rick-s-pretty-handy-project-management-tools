@@ -22,7 +22,7 @@ class MenuSystem:
             "1": {
                 "name": "🚀 Enhanced Spec Sheet Generator",
                 "description": "Generate sophisticated spec sheets with risk-based pricing and sprint planning",
-                "script": "spec-sheet/spec-sheet-generator.py",
+                "script": "spec_sheet/spec_sheet_generator.py",
                 "function": self._run_spec_sheet_generator
             },
             "2": {
@@ -131,7 +131,7 @@ class MenuSystem:
     
     def _run_spec_sheet_generator(self):
         """Run the enhanced spec sheet generator"""
-        if not self._check_file_exists("spec-sheet/spec-sheet-generator.py"):
+        if not self._check_file_exists("spec_sheet/spec_sheet_generator.py"):
             return
         
         print("Starting Enhanced Spec Sheet Generator...")
@@ -143,7 +143,7 @@ class MenuSystem:
         print()
         
         # Run from parent directory with full path to avoid import issues
-        script_path = os.path.join("spec-sheet", "spec-sheet-generator.py")
+        script_path = os.path.join("spec_sheet", "spec_sheet_generator.py")
         env = os.environ.copy()
         env["PYTHONPATH"] = os.getcwd()  # Ensure current directory is in Python path
         
