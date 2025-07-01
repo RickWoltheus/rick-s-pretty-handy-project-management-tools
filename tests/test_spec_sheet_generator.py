@@ -147,7 +147,7 @@ class TestEnhancedSpecSheetSync:
         
         # Test calculation
         total_story_points = 40
-        estimates = sync.calculate_sprint_estimates(total_story_points, team)
+        estimates = sync.orchestrator.sprint_planner.calculate_sprint_estimates(total_story_points, team)
         
         assert estimates['total_story_points'] == 40
         assert estimates['team_velocity'] > 0
@@ -180,10 +180,10 @@ class TestEnhancedSpecSheetSync:
         dependant_story = {"fields": {"customfield_10273": "dependant"}}
         no_type_story = {"fields": {}}
         
-        assert sync.determine_risk_profile(proven_story) == "proven"
-        assert sync.determine_risk_profile(experimental_story) == "experimental"
-        assert sync.determine_risk_profile(dependant_story) == "dependant"
-        assert sync.determine_risk_profile(no_type_story) == "experimental"  # Default
+        assert sync.orchestrator.risk_assessor.determine_risk_profile(proven_story) == "proven"
+        assert sync.orchestrator.risk_assessor.determine_risk_profile(experimental_story) == "experimental"
+        assert sync.orchestrator.risk_assessor.determine_risk_profile(dependant_story) == "dependant"
+        assert sync.orchestrator.risk_assessor.determine_risk_profile(no_type_story) == "experimental"  # Default
     
     @patch.dict(os.environ, {
         'JIRA_DOMAIN': 'https://test.atlassian.net',
@@ -223,22 +223,23 @@ class TestEnhancedSpecSheetSync:
                 "header_row_height": 80
             }
         }
-        sync.base_story_point_price = 100.0
-        sync.experimental_variance = 0.3
-        sync.hourly_rate = 85.0
-        sync.dod_impact_total = 0.0  # Set to 0 for predictable test results
+        # Set pricing engine values directly for testing
+        sync.orchestrator.pricing_engine.base_story_point_price = 100.0
+        sync.orchestrator.pricing_engine.experimental_variance = 0.3
+        sync.orchestrator.pricing_engine.hourly_rate = 85.0
+        sync.orchestrator.pricing_engine.dod_impact_total = 0.0  # Set to 0 for predictable test results
         
         # Test proven pricing (without DoD impacts, should be 5 * 100 = 500)
-        prices = sync.calculate_prices(5, 'proven')
+        prices = sync.orchestrator.pricing_engine.calculate_prices(5, 'proven')
         assert prices['fixed'] == 500.0
         
         # Test experimental pricing
-        prices = sync.calculate_prices(5, 'experimental')
+        prices = sync.orchestrator.pricing_engine.calculate_prices(5, 'experimental')
         assert prices['minimum'] == 350.0  # 500 * 0.7
         assert prices['maximum'] == 650.0  # 500 * 1.3
         
         # Test dependant pricing (5 story points * 8 hours/SP * 85/hour = 3400)
-        prices = sync.calculate_prices(5, 'dependant')
+        prices = sync.orchestrator.pricing_engine.calculate_prices(5, 'dependant')
         assert prices['hourly_estimate'] == 3400.0  # 5 * 8 * 85
     
     @patch.dict(os.environ, {
@@ -265,12 +266,12 @@ class TestEnhancedSpecSheetSync:
         high_priority = {"fields": {"priority": {"name": "High"}, "labels": []}}
         no_priority = {"fields": {"labels": []}}
         
-        assert sync.get_moscow_priority(must_story) == "Must Have"
-        assert sync.get_moscow_priority(should_story) == "Should Have"
-        assert sync.get_moscow_priority(could_story) == "Could Have"
-        assert sync.get_moscow_priority(wont_story) == "Won't Have"
-        assert sync.get_moscow_priority(high_priority) == "Should Have"  # High priority -> Should Have (per implementation)
-        assert sync.get_moscow_priority(no_priority) == "Should Have"  # Default
+        assert sync.orchestrator.moscow_manager.get_moscow_priority(must_story) == "Must Have"
+        assert sync.orchestrator.moscow_manager.get_moscow_priority(should_story) == "Should Have"
+        assert sync.orchestrator.moscow_manager.get_moscow_priority(could_story) == "Could Have"
+        assert sync.orchestrator.moscow_manager.get_moscow_priority(wont_story) == "Won't Have"
+        assert sync.orchestrator.moscow_manager.get_moscow_priority(high_priority) == "Should Have"  # High priority -> Should Have (per implementation)
+        assert sync.orchestrator.moscow_manager.get_moscow_priority(no_priority) == "Should Have"  # Default
     
     @patch.dict(os.environ, {
         'JIRA_DOMAIN': 'https://test.atlassian.net',
@@ -288,7 +289,7 @@ class TestEnhancedSpecSheetSync:
         sync.jira_client = Mock()
         sync.jira_config = Mock()
         
-        custom_team = sync.create_custom_team(sample_team_data)
+        custom_team = sync.orchestrator.sprint_planner.create_custom_team(sample_team_data)
         
         assert custom_team.name == "Custom Team"
         assert len(custom_team.members) == 3
@@ -334,7 +335,7 @@ class TestEnhancedSpecSheetSync:
         
         # Test filtering for Must Have and Should Have only
         selected_priorities = ['Must Have', 'Should Have']
-        filtered_stories, priority_counts = sync.filter_stories_by_moscow(mock_stories, selected_priorities)
+        filtered_stories, priority_counts = sync.orchestrator.moscow_manager.filter_stories_by_moscow(mock_stories, selected_priorities)
         
         assert len(filtered_stories) == 2  # Only Must Have and Should Have
         assert filtered_stories[0]['key'] == 'PROJ-1'  # Must Have (Highest)
@@ -342,14 +343,14 @@ class TestEnhancedSpecSheetSync:
         
         # Test filtering for Could Have only
         selected_priorities = ['Could Have']
-        filtered_stories, priority_counts = sync.filter_stories_by_moscow(mock_stories, selected_priorities)
+        filtered_stories, priority_counts = sync.orchestrator.moscow_manager.filter_stories_by_moscow(mock_stories, selected_priorities)
         
         assert len(filtered_stories) == 1
         assert filtered_stories[0]['key'] == 'PROJ-3'  # Could Have (Medium)
         
         # Test no filtering (all priorities)
         selected_priorities = ['Must Have', 'Should Have', 'Could Have', 'Won\'t Have']
-        filtered_stories, priority_counts = sync.filter_stories_by_moscow(mock_stories, selected_priorities)
+        filtered_stories, priority_counts = sync.orchestrator.moscow_manager.filter_stories_by_moscow(mock_stories, selected_priorities)
         
         assert len(filtered_stories) == 4  # All stories
 
@@ -365,7 +366,7 @@ class TestEnhancedSpecSheetSync:
                 'labels': ['must-have', 'feature']
             }
         }
-        priority = sync.get_moscow_priority(story_with_must_label)
+        priority = sync.orchestrator.moscow_manager.get_moscow_priority(story_with_must_label)
         assert priority == 'Must Have'
         
         # Test story with should-have label
@@ -375,7 +376,7 @@ class TestEnhancedSpecSheetSync:
                 'labels': ['should', 'enhancement']
             }
         }
-        priority = sync.get_moscow_priority(story_with_should_label)
+        priority = sync.orchestrator.moscow_manager.get_moscow_priority(story_with_should_label)
         assert priority == 'Should Have'
         
         # Test story with could-have label
@@ -385,7 +386,7 @@ class TestEnhancedSpecSheetSync:
                 'labels': ['could-have', 'nice-to-have']
             }
         }
-        priority = sync.get_moscow_priority(story_with_could_label)
+        priority = sync.orchestrator.moscow_manager.get_moscow_priority(story_with_could_label)
         assert priority == 'Could Have'
         
         # Test story with won't-have label
@@ -395,7 +396,7 @@ class TestEnhancedSpecSheetSync:
                 'labels': ['wont-have', 'out-of-scope']
             }
         }
-        priority = sync.get_moscow_priority(story_with_wont_label)
+        priority = sync.orchestrator.moscow_manager.get_moscow_priority(story_with_wont_label)
         assert priority == 'Won\'t Have'
 
     def test_sync_with_moscow_filtering_integration(self, spec_sheet_classes):

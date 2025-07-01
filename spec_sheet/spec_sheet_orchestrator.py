@@ -471,4 +471,12 @@ class SpecSheetOrchestrator:
         # Adjust column widths
         column_widths = [25, 50, 15, 15, 15, 15, 15]
         for i, width in enumerate(column_widths, 1):
-            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width 
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+    
+    def display_current_team_info(self):
+        """Display current team information"""
+        self.sprint_planner.display_current_team_info()
+    
+    def refresh_current_team(self):
+        """Refresh current team data from TeamManager"""
+        return self.sprint_planner.refresh_current_team() 

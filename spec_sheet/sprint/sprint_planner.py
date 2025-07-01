@@ -171,7 +171,7 @@ class SprintPlanner:
     def refresh_current_team(self):
         """Refresh the current team data from TeamManager (useful if team members were added/modified)"""
         print("🔄 Refreshing team configuration...")
-        self.current_team = self._load_current_team()
+        self.current_team = self._load_current_team(verbose=True)
         return self.current_team
     
     def calculate_sprint_estimates(self, total_story_points: float, team: Team) -> Dict[str, Any]:

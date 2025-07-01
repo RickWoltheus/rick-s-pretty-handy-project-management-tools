@@ -35,6 +35,12 @@ class EnhancedSpecSheetSync:
     def get_moscow_priorities_interactive(self):
         """Interactive MoSCoW priority selection - delegated to orchestrator"""
         return self.orchestrator.select_moscow_priorities()
+    
+    def sync_to_scope_sheet(self, sheet_name, selected_priorities=None):
+        """Sync data to scope sheet - delegated to orchestrator"""
+        if selected_priorities is not None:
+            self.orchestrator.selected_moscow_priorities = selected_priorities
+        return self.orchestrator.sync_to_scope_sheet(sheet_name)
 
 
 def main():
