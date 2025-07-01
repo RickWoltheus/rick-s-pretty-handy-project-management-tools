@@ -415,8 +415,15 @@ class SpecSheetOrchestrator:
         
         # Team comparison data
         for team_name, estimates in report['team_comparison'].items():
-            team = self.sprint_planner.default_teams[team_name]
-            ws.cell(row=current_row, column=1).value = team_name.title()
+            # Get the appropriate team object
+            if team_name == 'current':
+                team = self.sprint_planner.current_team
+                display_name = "Current Team ⭐"
+            else:
+                team = self.sprint_planner.default_teams[team_name]
+                display_name = team_name.title()
+                
+            ws.cell(row=current_row, column=1).value = display_name
             ws.cell(row=current_row, column=2).value = len(team.members)
             ws.cell(row=current_row, column=3).value = f"{team.get_total_fte():.1f}"
             ws.cell(row=current_row, column=4).value = f"{estimates['team_velocity']:.1f}"

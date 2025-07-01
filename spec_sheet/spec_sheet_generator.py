@@ -49,6 +49,9 @@ def main():
         print("\n❌ Connection test failed. Please check your configuration.")
         sys.exit(1)
     
+    # Display current team configuration
+    sync.orchestrator.sprint_planner.display_current_team_info()
+    
     # Interactive workflow
     try:
         # Step 1: Select version/release and get epics

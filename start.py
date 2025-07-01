@@ -26,60 +26,42 @@ class MenuSystem:
                 "function": self._run_spec_sheet_generator
             },
             "2": {
-                "name": "📊 Basic JIRA Sync",
-                "description": "Simple sync of JIRA epics and stories to spreadsheet",
-                "script": "jira_sync.py",
-                "function": self._run_basic_sync
-            },
-            "3": {
                 "name": "🔍 Validate JIRA Setup",
                 "description": "Check JIRA configuration and field mappings",
                 "script": "utils/validate_jira_setup.py",
                 "function": self._run_validation
             },
-            "4": {
+            "3": {
                 "name": "⚙️  Setup & Configuration",
                 "description": "Configure JIRA connection and environment settings",
                 "script": "setup.py",
                 "function": self._run_setup
-                        },
-            "5": {
+            },
+            "4": {
                 "name": "📝 View Configuration",
                 "description": "Display current environment configuration",
                 "script": None,
                 "function": self._show_config
             },
-            "6": {
+            "5": {
                 "name": "📚 Show Documentation", 
                 "description": "Display helpful guides and documentation",
                 "script": None,
                 "function": self._show_documentation
             },
-            "7": {
+            "6": {
                 "name": "👥 Team Management",
                 "description": "Create and manage team members with persistent holiday storage",
                 "script": "team/team_manager.py",
                 "function": self._run_team_management
             },
-            "8": {
+            "7": {
                 "name": "📅 Enhanced Timeline Generator",
                 "description": "Generate project timelines with team integration and visual absences",
                 "script": "timeline/enhanced_timeline_generator.py",
                 "function": self._run_enhanced_timeline
             },
-            "9": {
-                "name": "📅 Timeline & Calendar Generator (Legacy)",
-                "description": "Original timeline generator with manual team setup",
-                "script": "timeline/timeline_generator.py",
-                "function": self._run_timeline_generator
-            },
-            "10": {
-                "name": "🎬 Timeline Demo",
-                "description": "Demo the timeline generator with pre-configured example",
-                "script": "timeline/demo_timeline.py", 
-                "function": self._run_timeline_demo
-            },
-            "11": {
+            "8": {
                 "name": "🧪 Run Tests",
                 "description": "Execute the test suite to verify functionality",
                 "script": "run_tests.py",
@@ -104,7 +86,7 @@ class MenuSystem:
     def get_user_choice(self) -> str:
         """Get user's menu choice"""
         while True:
-            choice = input("Select an option (0-11): ").strip()
+            choice = input("Select an option (0-8): ").strip()
             if choice in list(self.tools.keys()) + ["0"]:
                 return choice
             print("❌ Invalid choice. Please select a valid option.")
@@ -149,19 +131,7 @@ class MenuSystem:
         
         subprocess.run([sys.executable, script_path], env=env, check=True)
     
-    def _run_basic_sync(self):
-        """Run basic JIRA sync"""
-        if not self._check_file_exists("jira_sync.py"):
-            return
-        
-        print("Starting Basic JIRA Sync...")
-        print("This will create a simple spreadsheet with:")
-        print("• Epic and story hierarchy")
-        print("• Story points")
-        print("• Basic cost calculations")
-        print()
-        
-        subprocess.run([sys.executable, "jira_sync.py"], check=True)
+
     
     def _run_validation(self):
         """Run JIRA setup validation"""
@@ -194,28 +164,7 @@ class MenuSystem:
     
 
     
-    def _run_timeline_generator(self):
-        """Run the timeline and calendar generator"""
-        if not self._check_file_exists("timeline/timeline_generator.py"):
-            return
-        
-        print("Starting Timeline & Calendar Generator...")
-        print("This tool provides:")
-        print("• Project timeline generation from specified dates")
-        print("• Team member capacity planning with FTE and skills")
-        print("• Dutch national holiday integration (via API)")
-        print("• Custom holiday management (company and personal)")
-        print("• Sprint planning with realistic capacity calculations")
-        print("• Calendar views with availability tracking")
-        print("• Excel workbook output with multiple sheets")
-        print()
-        
-        # Run from timeline directory with full path
-        script_path = os.path.join("timeline", "timeline_generator.py")
-        env = os.environ.copy()
-        env["PYTHONPATH"] = os.getcwd()
-        
-        subprocess.run([sys.executable, script_path], env=env, check=True)
+
     
     def _run_team_management(self):
         """Run the team management system"""
@@ -268,27 +217,7 @@ class MenuSystem:
         
         subprocess.run([sys.executable, script_path], env=env, check=True)
     
-    def _run_timeline_demo(self):
-        """Run the timeline demo with pre-configured settings"""
-        if not self._check_file_exists("timeline/demo_timeline.py"):
-            return
-        
-        print("Starting Timeline Demo...")
-        print("This demo shows:")
-        print("• Pre-configured team of 4 members with different roles/skills")
-        print("• Dutch holiday integration for current and next year")
-        print("• Custom company holidays and personal time off")
-        print("• Realistic capacity calculations and sprint planning")
-        print("• Generated Excel workbook with timeline analysis")
-        print("• No user interaction required - runs automatically")
-        print()
-        
-        # Run from timeline directory with full path
-        script_path = os.path.join("timeline", "demo_timeline.py")
-        env = os.environ.copy()
-        env["PYTHONPATH"] = os.getcwd()
-        
-        subprocess.run([sys.executable, script_path], env=env, check=True)
+
     
     def _show_config(self):
         """Display current configuration"""
@@ -319,7 +248,7 @@ class MenuSystem:
         # Show available files
         print(f"\nAvailable Files:")
         print(f"• .env file: {'✅' if os.path.exists('.env') else '❌'}")
-        print(f"• Spec sheet: {'✅' if os.path.exists('spec-sheet/spec-sheet.xlsx') else '❌'}")
+        print(f"• Spec sheet: {'✅' if os.path.exists('spec-sheet.xlsx') else '❌'}")
         print(f"• Requirements: {'✅' if os.path.exists('requirements.txt') else '❌'}")
     
     def _show_documentation(self):
