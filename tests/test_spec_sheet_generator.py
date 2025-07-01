@@ -192,7 +192,33 @@ class TestEnhancedSpecSheetSync:
         sync = EnhancedSpecSheetSync()
         sync.jira_client = Mock()
         sync.jira_config = Mock()
-        sync.settings = {'base_story_point_price': 100.0, 'experimental_variance': 0.3, 'hourly_rate': 85.0}
+        # Mock settings config to use test values
+        sync.settings_config = {
+            "pricing": {
+                "base_story_point_price": 100.0,
+                "experimental_variance": 0.3,
+                "base_hourly_rate": 113.33,
+                "hourly_rate_discount": 0.25
+            },
+            "sprint_planning": {
+                "hours_per_story_point": 8
+            },
+            "risk_assessment": {
+                "proven_threshold_story_points": 3,
+                "experimental_threshold_story_points": 8
+            },
+            "ui_formatting": {
+                "header_color": "366092",
+                "summary_header_color": "366092",
+                "epic_background_color": "E6F3FF",
+                "section_background_color": "D4EDDA",
+                "default_column_widths": [50, 20, 20, 30, 15, 12, 15, 12, 12, 15, 20],
+                "header_row_height": 80
+            }
+        }
+        sync.base_story_point_price = 100.0
+        sync.experimental_variance = 0.3
+        sync.hourly_rate = 85.0
         sync.dod_impact_total = 0.0  # Set to 0 for predictable test results
         
         # Test proven pricing (without DoD impacts, should be 5 * 100 = 500)
@@ -371,7 +397,37 @@ class TestEnhancedSpecSheetSync:
         sync = EnhancedSpecSheetSync()
         sync.jira_client = Mock()
         sync.jira_config = Mock()
-        sync.settings = {'base_story_point_price': 100.0, 'experimental_variance': 0.3, 'hourly_rate': 85.0}
+        # Mock settings config to use test values
+        sync.settings_config = {
+            "pricing": {
+                "base_story_point_price": 100.0,
+                "experimental_variance": 0.3,
+                "base_hourly_rate": 113.33,
+                "hourly_rate_discount": 0.25
+            },
+            "sprint_planning": {
+                "hours_per_story_point": 8
+            },
+            "risk_assessment": {
+                "proven_threshold_story_points": 3,
+                "experimental_threshold_story_points": 8
+            },
+            "ui_formatting": {
+                "header_color": "366092",
+                "summary_header_color": "366092",
+                "epic_background_color": "E6F3FF",
+                "section_background_color": "D4EDDA",
+                "default_column_widths": [50, 20, 20, 30, 15, 12, 15, 12, 12, 15, 20],
+                "header_row_height": 80
+            }
+        }
+        sync.base_story_point_price = 100.0
+        sync.experimental_variance = 0.3
+        sync.hourly_rate = 85.0
+        
+        # Ensure DoD impact total is set (the initialization should have done this)
+        if not hasattr(sync, 'dod_impact_total'):
+            sync.dod_impact_total = 0.66  # Default from configuration
         
         # Mock epics and stories (epic-story hierarchy approach)
         mock_epics = [
@@ -446,7 +502,7 @@ class TestSpreadsheetGeneration:
         
         # Check sheets exist
         assert_workbook_has_sheet(test_workbook, "Scope (Quantity)")
-        assert_workbook_has_sheet(test_workbook, "DOD Impact")
+        assert_workbook_has_sheet(test_workbook, "Definition of Done (Quality)")
         assert_workbook_has_sheet(test_workbook, "Settings")
     
     def test_scope_sheet_headers(self, test_workbook):
@@ -463,17 +519,55 @@ class TestSpreadsheetGeneration:
         assert data[0] == expected_headers
     
     def test_dod_impact_sheet_data(self, test_workbook):
-        """Test DOD Impact sheet contains expected data"""
-        data = get_sheet_data(test_workbook, "DOD Impact")
+        """Test Definition of Done (Quality) sheet contains comprehensive quality standards"""
+        data = get_sheet_data(test_workbook, "Definition of Done (Quality)")
         
-        # Should have header + at least 4 impact factors
-        assert len(data) >= 5
-        assert data[0] == ["Impact Factor", "Percentage"]
+        # Should have header + DoD items + category headers + sum row (test fixture has simplified structure)
+        assert len(data) >= 10  # Header + some categories and items + sum row
+        assert data[0] == ["Definition of Done", "MoSCoW", "Price Impact", "Price Impact %"]
         
-        # Check some expected factors
-        factors = [row[0] for row in data[1:]]
-        assert "Scope Clarity" in factors
-        assert "Technical Complexity" in factors
+        # Check that some category headers are present (test fixture has 3 categories)
+        categories_found = []
+        for row in data[1:]:
+            if len(row) > 0 and row[0] in [
+                "Code quality & documentation",
+                "Performance & optimization", 
+                "UI/UX & animations",
+                "Error handling & logging",
+                "Testing & Cross-browser compatibility",
+                "Security & deployment"
+            ]:
+                categories_found.append(row[0])
+        
+        assert len(categories_found) >= 3, f"Expected at least 3 categories, found {len(categories_found)}: {categories_found}"
+        
+        # Check some key DoD items are present
+        dod_items = [row[0] for row in data[1:] if len(row) > 0]
+        assert "Code is structured, modular, and follows best practices" in dod_items
+        assert "API calls are debounced to increase performance" in dod_items
+        assert "Security vulnerabilities are identified and mitigated" in dod_items
+        
+        # Check that sum row exists and is calculated correctly
+        sum_rows = [row for row in data if len(row) >= 4 and row[2] == "Sum"]
+        assert len(sum_rows) == 1, "Should have exactly one sum row"
+        
+        # Calculate expected sum from actual DoD items with numeric percentages
+        expected_sum = sum(
+            row[3] for row in data[1:] 
+            if len(row) >= 4 and isinstance(row[3], (int, float)) and row[2] != "Sum"
+        )
+        assert sum_rows[0][3] == expected_sum, f"Sum should be {expected_sum} (calculated), but got {sum_rows[0][3]}"
+        
+        # Check that MoSCoW priorities are correctly assigned
+        moscow_values = [row[1] for row in data[1:] if len(row) > 1 and row[1]]
+        assert "Must Have" in moscow_values
+        assert "Could Have" in moscow_values
+        assert "Won't Have" in moscow_values
+        
+        # Check that Won't Have items have 0 impact
+        for row in data[1:]:
+            if len(row) >= 4 and row[1] == "Won't Have" and isinstance(row[3], (int, float)):
+                assert row[3] == 0.0, f"Won't Have items should have 0% impact, but {row[0]} has {row[3]}"
     
     def test_settings_sheet_data(self, test_workbook):
         """Test Settings sheet contains expected configuration"""

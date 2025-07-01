@@ -15,6 +15,7 @@ from utils.jira_client import JiraClient
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 import math
+import json
 
 # Team composition and sprint planning classes
 class TeamMember:
@@ -31,11 +32,17 @@ class TeamMember:
 
 class Team:
     """Represents a development team with various roles and capacities"""
-    def __init__(self, name: str = "Development Team"):
+    def __init__(self, name: str = "Development Team", settings_config: Dict = None):
         self.name = name
         self.members: List[TeamMember] = []
-        self.sprint_length_weeks = 2  # Default 2-week sprints
-        self.sprint_overhead = 0.15   # 15% overhead for meetings, planning, etc.
+        
+        # Use configurable settings or defaults
+        if settings_config:
+            self.sprint_length_weeks = settings_config["sprint_planning"]["default_sprint_length_weeks"]
+            self.sprint_overhead = settings_config["sprint_planning"]["sprint_overhead_percentage"]
+        else:
+            self.sprint_length_weeks = 2  # Default 2-week sprints
+            self.sprint_overhead = 0.15   # 15% overhead for meetings, planning, etc.
     
     def add_member(self, member: TeamMember):
         """Add a team member"""
@@ -72,19 +79,25 @@ class EnhancedSpecSheetSync:
             
             # Load existing spec sheet structure
             self.spec_sheet_path = "spec-sheet.xlsx"
-            self.base_story_point_price = 130  # €130 per story point
-            self.experimental_variance = 0.3  # 30% variance
-            self.hourly_rate = 127.16 * 0.75  # €127.16/h with 25% discount
-            self.dod_impact_total = 0.63  # 63% total DoD impact
+            self.dod_config_path = "dod_config.json"
+            self.settings_config_path = "settings_config.json"
+            
+            # Load configurations from files
+            self.settings_config = self._load_settings_config()
+            self.dod_config = self._load_dod_config()
+            
+            # Extract commonly used settings for easy access
+            self.base_story_point_price = self.settings_config["pricing"]["base_story_point_price"]
+            self.experimental_variance = self.settings_config["pricing"]["experimental_variance"]
+            # Calculate hourly rate dynamically
+            pricing_config = self.settings_config["pricing"]
+            self.hourly_rate = pricing_config["base_hourly_rate"] * (1 - pricing_config["hourly_rate_discount"])
+            
+            # DoD impact will be calculated after loading the structure
             
             # Type of work field configuration
             self.type_of_work_field = self.jira_config.type_of_work_field
-            self.risk_priority = {  # Higher number = higher risk (takes priority)
-                'proven': 1,
-                'experimental': 2,
-                'dependant': 3,
-                'dependent': 3  # Alternative spelling
-            }
+            self.risk_priority = self.settings_config["risk_assessment"]["risk_priority"]
             
             # Sprint planning configuration
             self.sprint_planning_enabled = True
@@ -95,37 +108,159 @@ class EnhancedSpecSheetSync:
             sys.exit(1)
     
     def _create_default_teams(self) -> Dict[str, Team]:
-        """Create default team compositions for analysis"""
+        """Create default team compositions for analysis using configurable settings"""
         teams = {}
+        team_defaults = self.settings_config["team_defaults"]
         
         # Small team
-        small_team = Team("Small Team")
-        small_team.add_member(TeamMember("Senior Developer", 1.0, 8))
-        small_team.add_member(TeamMember("Junior Developer", 1.0, 5))
-        small_team.add_member(TeamMember("Designer", 0.5, 6))
+        small_team = Team("Small Team", self.settings_config)
+        small_team.add_member(TeamMember("Senior Developer", 1.0, team_defaults["senior_developer_velocity"]))
+        small_team.add_member(TeamMember("Junior Developer", 1.0, team_defaults["junior_developer_velocity"]))
+        small_team.add_member(TeamMember("Designer", 0.5, team_defaults["designer_velocity"]))
         teams["small"] = small_team
         
         # Medium team
-        medium_team = Team("Medium Team")
-        medium_team.add_member(TeamMember("Tech Lead", 1.0, 10))
-        medium_team.add_member(TeamMember("Senior Developer", 2.0, 8))
-        medium_team.add_member(TeamMember("Junior Developer", 1.0, 5))
-        medium_team.add_member(TeamMember("Designer", 1.0, 6))
-        medium_team.add_member(TeamMember("QA Engineer", 0.5, 4))
+        medium_team = Team("Medium Team", self.settings_config)
+        medium_team.add_member(TeamMember("Tech Lead", 1.0, team_defaults["tech_lead_velocity"]))
+        medium_team.add_member(TeamMember("Senior Developer", 2.0, team_defaults["senior_developer_velocity"]))
+        medium_team.add_member(TeamMember("Junior Developer", 1.0, team_defaults["junior_developer_velocity"]))
+        medium_team.add_member(TeamMember("Designer", 1.0, team_defaults["designer_velocity"]))
+        medium_team.add_member(TeamMember("QA Engineer", 0.5, team_defaults["qa_engineer_velocity"]))
         teams["medium"] = medium_team
         
         # Large team
-        large_team = Team("Large Team")
-        large_team.add_member(TeamMember("Tech Lead", 1.0, 10))
-        large_team.add_member(TeamMember("Senior Developer", 3.0, 8))
-        large_team.add_member(TeamMember("Mid Developer", 2.0, 6))
-        large_team.add_member(TeamMember("Junior Developer", 2.0, 5))
-        large_team.add_member(TeamMember("Designer", 1.0, 6))
-        large_team.add_member(TeamMember("QA Engineer", 1.0, 4))
-        large_team.add_member(TeamMember("DevOps Engineer", 0.5, 7))
+        large_team = Team("Large Team", self.settings_config)
+        large_team.add_member(TeamMember("Tech Lead", 1.0, team_defaults["tech_lead_velocity"]))
+        large_team.add_member(TeamMember("Senior Developer", 3.0, team_defaults["senior_developer_velocity"]))
+        large_team.add_member(TeamMember("Mid Developer", 2.0, team_defaults["mid_developer_velocity"]))
+        large_team.add_member(TeamMember("Junior Developer", 2.0, team_defaults["junior_developer_velocity"]))
+        large_team.add_member(TeamMember("Designer", 1.0, team_defaults["designer_velocity"]))
+        large_team.add_member(TeamMember("QA Engineer", 1.0, team_defaults["qa_engineer_velocity"]))
+        large_team.add_member(TeamMember("DevOps Engineer", 0.5, team_defaults["devops_engineer_velocity"]))
         teams["large"] = large_team
         
         return teams
+    
+    def _load_settings_config(self) -> Dict:
+        """Load settings configuration from JSON file"""
+        try:
+            if os.path.exists(self.settings_config_path):
+                with open(self.settings_config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                print(f"✅ Loaded settings configuration from {self.settings_config_path}")
+                return config
+            else:
+                print(f"⚠️  Settings config file not found at {self.settings_config_path}, using defaults")
+                return self._get_default_settings_config()
+        except Exception as e:
+            print(f"❌ Error loading settings config: {e}, using defaults")
+            return self._get_default_settings_config()
+    
+    def _get_default_settings_config(self) -> Dict:
+        """Get default settings configuration if file doesn't exist"""
+        return {
+            "description": "Default settings configuration",
+            "version": "1.0",
+            "pricing": {
+                "base_story_point_price": 130,
+                "experimental_variance": 0.3,
+                "base_hourly_rate": 127.16,
+                "hourly_rate_discount": 0.25
+            },
+            "sprint_planning": {
+                "default_sprint_length_weeks": 2,
+                "sprint_overhead_percentage": 0.15,
+                "working_days_per_week": 5,
+                "hours_per_story_point": 8
+            },
+            "team_defaults": {
+                "default_hourly_rate": 95.37,
+                "senior_developer_velocity": 8,
+                "mid_developer_velocity": 6,
+                "junior_developer_velocity": 5,
+                "tech_lead_velocity": 10,
+                "designer_velocity": 6,
+                "qa_engineer_velocity": 4,
+                "devops_engineer_velocity": 7
+            },
+            "risk_assessment": {
+                "proven_threshold_story_points": 3,
+                "experimental_threshold_story_points": 8,
+                "risk_priority": {
+                    "proven": 1,
+                    "experimental": 2,
+                    "dependant": 3,
+                    "dependent": 3
+                }
+            },
+            "recommendations": {
+                "large_project_threshold": 100,
+                "small_project_threshold": 20,
+                "significant_sprints_saved_threshold": 4,
+                "high_experimental_percentage": 30,
+                "significant_dependent_percentage": 20
+            },
+            "ui_formatting": {
+                "header_color": "366092",
+                "summary_header_color": "366092",
+                "epic_background_color": "E6F3FF",
+                "section_background_color": "D4EDDA",
+                "default_column_widths": [50, 20, 20, 30, 15, 12, 15, 12, 12, 15, 20],
+                "header_row_height": 80
+            }
+        }
+    
+    def _load_dod_config(self) -> Dict:
+        """Load Definition of Done configuration from JSON file"""
+        try:
+            if os.path.exists(self.dod_config_path):
+                with open(self.dod_config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                print(f"✅ Loaded DoD configuration from {self.dod_config_path}")
+                return config
+            else:
+                print(f"⚠️  DoD config file not found at {self.dod_config_path}, using defaults")
+                return self._get_default_dod_config()
+        except Exception as e:
+            print(f"❌ Error loading DoD config: {e}, using defaults")
+            return self._get_default_dod_config()
+    
+    def _get_default_dod_config(self) -> Dict:
+        """Get default DoD configuration if file doesn't exist"""
+        return {
+            "description": "Default Definition of Done configuration",
+            "version": "1.0",
+            "categories": [
+                {
+                    "name": "Code quality & documentation",
+                    "items": [
+                        {
+                            "description": "Code is structured, modular, and follows best practices",
+                            "moscow": "Must Have",
+                            "impact_points": "8",
+                            "impact_percentage": 0.04
+                        },
+                        {
+                            "description": "Code is reviewed and approved via pull requests",
+                            "moscow": "Must Have",
+                            "impact_points": "5",
+                            "impact_percentage": 0.03
+                        }
+                    ]
+                },
+                {
+                    "name": "Performance & optimization",
+                    "items": [
+                        {
+                            "description": "Performance is optimized for production use",
+                            "moscow": "Should Have",
+                            "impact_points": "13",
+                            "impact_percentage": 0.07
+                        }
+                    ]
+                }
+            ]
+        }
     
     def calculate_sprint_estimates(self, total_story_points: float, team: Team) -> Dict[str, any]:
         """Calculate sprint estimates for a given team and story points"""
@@ -257,8 +392,10 @@ class EnhancedSpecSheetSync:
         }
     
     def _generate_recommendations(self, total_story_points: float, team_comparison: Dict, risk_breakdown: Dict) -> List[str]:
-        """Generate recommendations based on analysis"""
+        """Generate recommendations based on analysis using configurable thresholds"""
         recommendations = []
+        rec_config = self.settings_config["recommendations"]
+        sprint_config = self.settings_config["sprint_planning"]
         
         # Timeline recommendations
         small_sprints = team_comparison.get('small', {}).get('sprints', 0)
@@ -266,24 +403,25 @@ class EnhancedSpecSheetSync:
         
         if small_sprints > 0 and large_sprints > 0:
             time_saved = small_sprints - large_sprints
-            if time_saved > 4:
-                recommendations.append(f"Consider larger team - saves {time_saved} sprints ({time_saved * 2} weeks)")
+            if time_saved > rec_config["significant_sprints_saved_threshold"]:
+                weeks_saved = time_saved * sprint_config["default_sprint_length_weeks"]
+                recommendations.append(f"Consider larger team - saves {time_saved} sprints ({weeks_saved} weeks)")
         
         # Risk-based recommendations
         experimental_pct = risk_breakdown.get('story_point_percentages', {}).get('experimental', 0)
         dependant_pct = risk_breakdown.get('story_point_percentages', {}).get('dependant', 0)
         
-        if experimental_pct > 30:
-            recommendations.append("High experimental work (>30%) - consider prototyping phase")
+        if experimental_pct > rec_config["high_experimental_percentage"]:
+            recommendations.append(f"High experimental work (>{rec_config['high_experimental_percentage']}%) - consider prototyping phase")
         
-        if dependant_pct > 20:
-            recommendations.append("Significant dependent work (>20%) - ensure external dependencies are ready")
+        if dependant_pct > rec_config["significant_dependent_percentage"]:
+            recommendations.append(f"Significant dependent work (>{rec_config['significant_dependent_percentage']}%) - ensure external dependencies are ready")
         
         # Story points recommendations
-        if total_story_points > 100:
+        if total_story_points > rec_config["large_project_threshold"]:
             recommendations.append("Large project - consider breaking into phases or releases")
         
-        if total_story_points < 20:
+        if total_story_points < rec_config["small_project_threshold"]:
             recommendations.append("Small project - single developer might be sufficient")
         
         return recommendations
@@ -429,6 +567,9 @@ class EnhancedSpecSheetSync:
                 # Load DoD impacts
                 self.dod_impacts = self._load_dod_impacts()
                 
+                # Calculate total DoD impact from loaded impacts
+                self.dod_impact_total = self._calculate_dod_impact_total()
+                
                 # Load settings
                 self.settings = self._load_settings()
                 
@@ -453,21 +594,39 @@ class EnhancedSpecSheetSync:
             for idx, row in df.iterrows():
                 if pd.notna(row.iloc[0]) and pd.notna(row.iloc[3]):
                     description = str(row.iloc[0])
-                    impact = float(row.iloc[3])
-                    if impact > 0:
-                        dod_impacts[description] = impact
+                    # Skip category headers and sum row
+                    if description in ['Sum'] or description.endswith('&') or description.endswith('compatibility') or description.endswith('deployment'):
+                        continue
+                    
+                    try:
+                        impact = float(row.iloc[3])
+                        # Create a clean key from the description
+                        clean_key = description.lower().replace(' ', '_').replace('(', '').replace(')', '').replace(',', '').replace('-', '_')
+                        dod_impacts[clean_key] = impact
+                        print(f"   📋 Loaded DoD: {description} = {impact:.1%}")
+                    except (ValueError, TypeError):
+                        continue
                         
         except Exception as e:
-            print(f"Warning: Could not load DoD impacts: {e}")
+            print(f"Warning: Could not load DoD impacts, using defaults: {e}")
+            # Return default impacts if loading fails
+            return self._get_default_dod_impacts()
+            
+        if not dod_impacts:
+            print("Warning: No DoD impacts found in sheet, using defaults")
+            return self._get_default_dod_impacts()
             
         return dod_impacts
     
     def _load_settings(self) -> Dict[str, any]:
-        """Load settings from the spec sheet"""
+        """Load settings from the spec sheet, with fallback to configuration file"""
+        pricing_config = self.settings_config["pricing"]
+        # Calculate hourly rate dynamically
+        calculated_hourly_rate = pricing_config["base_hourly_rate"] * (1 - pricing_config["hourly_rate_discount"])
         settings = {
-            'base_story_point_price': 130,
-            'experimental_variance': 0.3,
-            'hourly_rate': 95.37  # 127.16 * 0.75
+            'base_story_point_price': pricing_config["base_story_point_price"],
+            'experimental_variance': pricing_config["experimental_variance"],
+            'hourly_rate': calculated_hourly_rate
         }
         
         try:
@@ -507,13 +666,17 @@ class EnhancedSpecSheetSync:
         
         # Set default values
         self.dod_impacts = self._get_default_dod_impacts()
+        
+        # Calculate total DoD impact from default impacts
+        self.dod_impact_total = self._calculate_dod_impact_total()
+        
         self.settings = self._load_settings()
         
         # Save the new workbook
         self.workbook.save(self.spec_sheet_path)
     
     def _setup_default_dod_sheet(self, ws):
-        """Set up default Definition of Done sheet"""
+        """Set up Definition of Done sheet using configuration"""
         headers = [
             "Definition of Done",
             "MoSCoW",
@@ -525,29 +688,58 @@ class EnhancedSpecSheetSync:
             ws.cell(row=1, column=i).value = header
             ws.cell(row=1, column=i).font = Font(bold=True)
         
-        # Add some default DoD items
-        dod_items = [
-            ("Code quality & documentation", "Must Have", "", 0.04),
-            ("Code is reviewed and approved via pull requests", "Must Have", "", 0.025),
-            ("Code is well-documented", "Should Have", "", 0.04),
-            ("Performance optimization", "Should Have", "", 0.065),
-            ("Testing & Cross-browser compatibility", "Must Have", "", 0.065),
-            ("Security vulnerabilities are identified", "Must Have", "", 0.04),
-        ]
+        current_row = 2
+        all_items = []
         
-        for i, (desc, moscow, impact_desc, impact_pct) in enumerate(dod_items, 2):
-            ws.cell(row=i, column=1).value = desc
-            ws.cell(row=i, column=2).value = moscow
-            ws.cell(row=i, column=3).value = impact_desc
-            ws.cell(row=i, column=4).value = impact_pct
+        # Use configuration to build DoD sheet
+        for category in self.dod_config.get('categories', []):
+            category_name = category.get('name', 'Unknown Category')
+            
+            # Add category header
+            ws.cell(row=current_row, column=1).value = category_name
+            ws.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+            
+            # Add items for this category
+            for item in category.get('items', []):
+                desc = item.get('description', '')
+                moscow = item.get('moscow', 'Should Have')
+                impact_desc = item.get('impact_points', '')
+                impact_pct = item.get('impact_percentage', 0.0)
+                
+                ws.cell(row=current_row, column=1).value = desc
+                ws.cell(row=current_row, column=2).value = moscow
+                ws.cell(row=current_row, column=3).value = impact_desc
+                ws.cell(row=current_row, column=4).value = impact_pct
+                
+                all_items.append(impact_pct)
+                current_row += 1
+            
+            # Add empty row between categories
+            current_row += 1
+        
+        # Add sum row with calculated total
+        current_row += 1
+        ws.cell(row=current_row, column=3).value = "Sum"
+        ws.cell(row=current_row, column=3).font = Font(bold=True)
+        
+        # Calculate sum from all items
+        calculated_sum = sum(all_items)
+        ws.cell(row=current_row, column=4).value = calculated_sum
+        ws.cell(row=current_row, column=4).font = Font(bold=True)
+        
+        print(f"📊 Generated DoD sheet with {len(all_items)} items, total impact: {calculated_sum:.1%}")
     
     def _setup_default_settings_sheet(self, ws):
-        """Set up default Settings sheet"""
+        """Set up default Settings sheet using configurable values"""
+        pricing_config = self.settings_config["pricing"]
+        # Calculate hourly rate dynamically
+        calculated_hourly_rate = pricing_config["base_hourly_rate"] * (1 - pricing_config["hourly_rate_discount"])
         settings_data = [
-            ("Range for Experimental pricing (up & down)", 0.3),
-            ("Base price of 8 story points", 1040),
-            ("Base price of 1 story point", 130),
-            ("Hourly rate", 95.37),
+            ("Range for Experimental pricing (up & down)", pricing_config["experimental_variance"]),
+            ("Base price of 8 story points", pricing_config["base_story_point_price"] * 8),
+            ("Base price of 1 story point", pricing_config["base_story_point_price"]),
+            ("Hourly rate", calculated_hourly_rate),
         ]
         
         ws.cell(row=1, column=1).value = "Settings"
@@ -558,15 +750,30 @@ class EnhancedSpecSheetSync:
             ws.cell(row=i, column=2).value = value
     
     def _get_default_dod_impacts(self):
-        """Get default DoD impacts when no sheet exists"""
-        return {
-            "code_quality": 0.04,
-            "code_review": 0.025,
-            "documentation": 0.04,
-            "performance": 0.065,
-            "testing": 0.065,
-            "security": 0.04
-        }
+        """Get DoD impacts from loaded configuration"""
+        dod_impacts = {}
+        
+        for category in self.dod_config.get('categories', []):
+            for item in category.get('items', []):
+                description = item.get('description', '')
+                impact_percentage = item.get('impact_percentage', 0.0)
+                
+                # Create a clean key from the description
+                clean_key = description.lower().replace(' ', '_').replace('(', '').replace(')', '').replace(',', '').replace('-', '_').replace('&', 'and')
+                dod_impacts[clean_key] = impact_percentage
+        
+        print(f"📋 Loaded {len(dod_impacts)} DoD impacts from configuration")
+        return dod_impacts
+    
+    def _calculate_dod_impact_total(self) -> float:
+        """Calculate total DoD impact from all loaded DoD impacts"""
+        if not hasattr(self, 'dod_impacts') or not self.dod_impacts:
+            print("⚠️  No DoD impacts loaded, using 0% impact")
+            return 0.0
+        
+        total_impact = sum(self.dod_impacts.values())
+        print(f"📊 Calculated total DoD impact: {total_impact:.1%} ({total_impact:.3f})")
+        return total_impact
     
     def determine_risk_profile(self, story: Dict) -> str:
         """Determine risk profile based on Type of work field with priority system"""
@@ -613,12 +820,13 @@ class EnhancedSpecSheetSync:
         elif any(label in risk_labels for label in ['dependant', 'dependent', 'high-risk', 'external']):
             return 'dependant'
         
-        # Fallback 2: Default risk assessment based on story points
+        # Fallback 2: Default risk assessment based on story points using configurable thresholds
         story_points = self.jira_client.get_story_points(story)
         if story_points:
-            if story_points <= 3:
+            risk_config = self.settings_config["risk_assessment"]
+            if story_points <= risk_config["proven_threshold_story_points"]:
                 return 'proven'
-            elif story_points <= 8:
+            elif story_points <= risk_config["experimental_threshold_story_points"]:
                 return 'experimental'
             else:
                 return 'dependant'
@@ -627,8 +835,8 @@ class EnhancedSpecSheetSync:
         return 'experimental'  # Default to experimental
     
     def calculate_prices(self, story_points: float, risk_profile: str) -> Dict[str, float]:
-        """Calculate prices based on risk profile and story points"""
-        base_price = story_points * self.settings['base_story_point_price']
+        """Calculate prices based on risk profile and story points using configurable settings"""
+        base_price = story_points * self.base_story_point_price
         
         # Apply DoD impact
         base_price_with_dod = base_price * (1 + self.dod_impact_total)
@@ -639,14 +847,14 @@ class EnhancedSpecSheetSync:
             prices['fixed'] = base_price_with_dod
             
         elif risk_profile == 'experimental':
-            variance = self.settings['experimental_variance']
+            variance = self.experimental_variance
             prices['minimum'] = base_price_with_dod * (1 - variance)
             prices['maximum'] = base_price_with_dod * (1 + variance)
             
         elif risk_profile == 'dependant':
-            # Estimate based on hourly rate
-            estimated_hours = story_points * 8  # Rough estimate: 8 hours per story point
-            prices['hourly_estimate'] = estimated_hours * self.settings['hourly_rate']
+            # Estimate based on hourly rate using configurable hours per story point
+            estimated_hours = story_points * self.settings_config["sprint_planning"]["hours_per_story_point"]
+            prices['hourly_estimate'] = estimated_hours * self.hourly_rate
         
         return prices
     
@@ -964,13 +1172,13 @@ class EnhancedSpecSheetSync:
             # Wrap text for better display
             cell.alignment = Alignment(wrap_text=True, vertical='top')
         
-        # Set appropriate column widths
-        column_widths = [50, 20, 20, 30, 15, 12, 15, 12, 12, 15, 20]
+        # Set appropriate column widths from configuration
+        column_widths = self.settings_config["ui_formatting"]["default_column_widths"]
         for i, width in enumerate(column_widths, 1):
             ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
         
-        # Set row height for header
-        ws.row_dimensions[1].height = 80
+        # Set row height for header from configuration
+        ws.row_dimensions[1].height = self.settings_config["ui_formatting"]["header_row_height"]
     
     def _add_summary_section(self, ws, start_row, epics):
         """Add a summary section with totals at the end"""
@@ -987,7 +1195,8 @@ class EnhancedSpecSheetSync:
             
         ws.cell(row=current_row, column=1).value = f"PROJECT SUMMARY - {version_info}{filter_text}"
         summary_font = Font(bold=True, size=12, color="FFFFFF")
-        summary_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_color = self.settings_config["ui_formatting"]["summary_header_color"]
+        summary_fill = PatternFill(start_color=header_color, end_color=header_color, fill_type="solid")
         
         for col in range(1, 12):
             cell = ws.cell(row=current_row, column=col)
@@ -1066,7 +1275,8 @@ class EnhancedSpecSheetSync:
         
         # Style the epic header
         epic_font = Font(bold=True, color="000000")
-        epic_fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+        epic_color = self.settings_config["ui_formatting"]["epic_background_color"]
+        epic_fill = PatternFill(start_color=epic_color, end_color=epic_color, fill_type="solid")
         
         for col in range(1, 12):
             cell = ws.cell(row=row, column=col)
@@ -1103,7 +1313,8 @@ class EnhancedSpecSheetSync:
         
         # Style the section header
         section_font = Font(bold=True, color="000000")
-        section_fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+        section_color = self.settings_config["ui_formatting"]["section_background_color"]
+        section_fill = PatternFill(start_color=section_color, end_color=section_color, fill_type="solid")
         
         for col in range(1, 12):
             cell = ws.cell(row=row, column=col)

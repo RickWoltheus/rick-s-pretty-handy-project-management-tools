@@ -94,18 +94,66 @@ def test_workbook(temp_dir):
     for col, header in enumerate(headers, 1):
         scope_ws.cell(row=1, column=col, value=header)
     
-    # Create DOD Impact sheet
-    dod_ws = wb.create_sheet("DOD Impact")
-    dod_data = [
-        ["Impact Factor", "Percentage"],
-        ["Scope Clarity", 0.15],
-        ["Technical Complexity", 0.20],
-        ["Team Experience", 0.13],
-        ["External Dependencies", 0.15]
+    # Create Definition of Done (Quality) sheet with comprehensive structure
+    dod_ws = wb.create_sheet("Definition of Done (Quality)")
+    
+    # Add headers
+    headers = ["Definition of Done", "MoSCoW", "Price Impact", "Price Impact %"]
+    for col, header in enumerate(headers, 1):
+        dod_ws.cell(row=1, column=col, value=header)
+    
+    # Add comprehensive DoD data
+    row_num = 2
+    
+    # Code quality & documentation
+    dod_ws.cell(row=row_num, column=1, value="Code quality & documentation")
+    row_num += 1
+    code_quality_items = [
+        ("Code is structured, modular, and follows best practices", "Must Have", "8", 0.04),
+        ("Code is reviewed and approved via pull requests", "Must Have", "5", 0.03),
+        ("Code is covered with relevant unit and integration tests", "Won't Have", "13", 0.0),
+        ("Code is well-documented (inline comments, README, API docs)", "Could Have", "8", 0.04),
     ]
-    for row, data in enumerate(dod_data, 1):
-        for col, value in enumerate(data, 1):
-            dod_ws.cell(row=row, column=col, value=value)
+    for desc, moscow, impact_desc, impact_pct in code_quality_items:
+        for col, value in enumerate([desc, moscow, impact_desc, impact_pct], 1):
+            dod_ws.cell(row=row_num, column=col, value=value)
+        row_num += 1
+    row_num += 1  # Empty row
+    
+    # Performance & optimization
+    dod_ws.cell(row=row_num, column=1, value="Performance & optimization")
+    row_num += 1
+    performance_items = [
+        ("API calls are debounced to increase performance", "Must Have", "5", 0.03),
+        ("Widget rendering is smooth with minimal performance impact", "Must Have", "13", 0.07),
+        ("State management is efficient and avoids unnecessary re-renders", "Must Have", "8", 0.04),
+    ]
+    for desc, moscow, impact_desc, impact_pct in performance_items:
+        for col, value in enumerate([desc, moscow, impact_desc, impact_pct], 1):
+            dod_ws.cell(row=row_num, column=col, value=value)
+        row_num += 1
+    row_num += 1  # Empty row
+    
+    # Security & deployment (shortened for test)
+    dod_ws.cell(row=row_num, column=1, value="Security & deployment")
+    row_num += 1
+    security_items = [
+        ("Security vulnerabilities are identified and mitigated", "Must Have", "8", 0.04),
+        ("Features are tested in multiple browsers and mobile devices", "Must Have", "13", 0.07),
+    ]
+    for desc, moscow, impact_desc, impact_pct in security_items:
+        for col, value in enumerate([desc, moscow, impact_desc, impact_pct], 1):
+            dod_ws.cell(row=row_num, column=col, value=value)
+        row_num += 1
+    row_num += 1  # Empty row
+    
+    # Sum row - calculate from actual values
+    row_num += 1
+    dod_ws.cell(row=row_num, column=3, value="Sum")
+    
+    # Calculate sum from the test DoD items
+    test_sum = 0.04 + 0.03 + 0.0 + 0.04 + 0.03 + 0.07 + 0.04 + 0.04 + 0.07  # Sum of all impact percentages above
+    dod_ws.cell(row=row_num, column=4, value=test_sum)
     
     # Create Settings sheet
     settings_ws = wb.create_sheet("Settings")

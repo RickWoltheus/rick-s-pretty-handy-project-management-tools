@@ -1,0 +1,150 @@
+{
+  "description": "Definition of Done configuration for Jira Spec Sheet Sync",
+  "version": "1.0",
+  "categories": [
+    {
+      "name": "Code quality & documentation",
+      "items": [
+        {
+          "description": "Code is structured, modular, and follows best practices",
+          "moscow": "Must Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        },
+        {
+          "description": "Code is reviewed and approved via pull requests",
+          "moscow": "Must Have",
+          "impact_points": "5",
+          "impact_percentage": 0.03
+        },
+        {
+          "description": "Code is covered with relevant unit and integration tests",
+          "moscow": "Won't Have",
+          "impact_points": "13",
+          "impact_percentage": 0.0
+        },
+        {
+          "description": "Code is well-documented (inline comments, README, API docs)",
+          "moscow": "Could Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        }
+      ]
+    },
+    {
+      "name": "Performance & optimization",
+      "items": [
+        {
+          "description": "API calls are debounced to increase performance",
+          "moscow": "Must Have",
+          "impact_points": "5",
+          "impact_percentage": 0.03
+        },
+        {
+          "description": "Widget rendering is smooth with minimal performance impact",
+          "moscow": "Must Have",
+          "impact_points": "13",
+          "impact_percentage": 0.07
+        },
+        {
+          "description": "State management is efficient and avoids unnecessary re-renders",
+          "moscow": "Must Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        }
+      ]
+    },
+    {
+      "name": "UI/UX & animations",
+      "items": [
+        {
+          "description": "Animations & transitions are smooth, lightweight, and performant",
+          "moscow": "Must Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        },
+        {
+          "description": "User interactions are intuitive and responsive",
+          "moscow": "Must Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        },
+        {
+          "description": "Accessibility standards (a11y) are followed",
+          "moscow": "Could Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        }
+      ]
+    },
+    {
+      "name": "Error handling & logging",
+      "items": [
+        {
+          "description": "Errors are handled gracefully with meaningful messages",
+          "moscow": "Should Have",
+          "impact_points": "5",
+          "impact_percentage": 0.03
+        },
+        {
+          "description": "Logging is in place for debugging and monitoring",
+          "moscow": "Should Have",
+          "impact_points": "5",
+          "impact_percentage": 0.03
+        },
+        {
+          "description": "Unexpected API failures have fallback mechanisms",
+          "moscow": "Could Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        }
+      ]
+    },
+    {
+      "name": "Testing & Cross-browser compatibility",
+      "items": [
+        {
+          "description": "Features are tested in multiple browsers and mobile devices",
+          "moscow": "Must Have",
+          "impact_points": "13",
+          "impact_percentage": 0.07
+        },
+        {
+          "description": "Functionalities pass unit, integration, and end-to-end tests",
+          "moscow": "Won't Have",
+          "impact_points": "13",
+          "impact_percentage": 0.0
+        },
+        {
+          "description": "Edge cases (e.g., missing API data, incorrect input) are handled",
+          "moscow": "Should Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        }
+      ]
+    },
+    {
+      "name": "Security & deployment",
+      "items": [
+        {
+          "description": "Security vulnerabilities are identified and mitigated",
+          "moscow": "Must Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        },
+        {
+          "description": "CI/CD is configured with automated builds and tests",
+          "moscow": "Won't Have",
+          "impact_points": "8",
+          "impact_percentage": 0.0
+        },
+        {
+          "description": "Deployment is validated in staging before production rollout",
+          "moscow": "Must Have",
+          "impact_points": "8",
+          "impact_percentage": 0.04
+        }
+      ]
+    }
+  ]
+}

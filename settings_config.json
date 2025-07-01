@@ -1,0 +1,51 @@
+{
+  "description": "Settings configuration for Jira Spec Sheet Sync",
+  "version": "1.0",
+  "pricing": {
+    "base_story_point_price": 130,
+    "experimental_variance": 0.3,
+    "base_hourly_rate": 127.16,
+    "hourly_rate_discount": 0.25
+  },
+  "sprint_planning": {
+    "default_sprint_length_weeks": 2,
+    "sprint_overhead_percentage": 0.15,
+    "working_days_per_week": 5,
+    "hours_per_story_point": 8
+  },
+  "team_defaults": {
+    "default_hourly_rate": 95.37,
+    "senior_developer_velocity": 8,
+    "mid_developer_velocity": 6,
+    "junior_developer_velocity": 5,
+    "tech_lead_velocity": 10,
+    "designer_velocity": 6,
+    "qa_engineer_velocity": 4,
+    "devops_engineer_velocity": 7
+  },
+  "risk_assessment": {
+    "proven_threshold_story_points": 3,
+    "experimental_threshold_story_points": 8,
+    "risk_priority": {
+      "proven": 1,
+      "experimental": 2,
+      "dependant": 3,
+      "dependent": 3
+    }
+  },
+  "recommendations": {
+    "large_project_threshold": 100,
+    "small_project_threshold": 20,
+    "significant_sprints_saved_threshold": 4,
+    "high_experimental_percentage": 30,
+    "significant_dependent_percentage": 20
+  },
+  "ui_formatting": {
+    "header_color": "366092",
+    "summary_header_color": "366092",
+    "epic_background_color": "E6F3FF",
+    "section_background_color": "D4EDDA",
+    "default_column_widths": [50, 20, 20, 30, 15, 12, 15, 12, 12, 15, 20],
+    "header_row_height": 80
+  }
+}
