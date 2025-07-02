@@ -248,7 +248,7 @@ class MenuSystem:
         # Show available files
         print(f"\nAvailable Files:")
         print(f"• .env file: {'✅' if os.path.exists('.env') else '❌'}")
-        print(f"• Spec sheet: {'✅' if os.path.exists('spec-sheet.xlsx') else '❌'}")
+        print(f"• Spec sheet: {'✅' if os.path.exists('output/spec-sheet.xlsx') else '❌'}")
         print(f"• Requirements: {'✅' if os.path.exists('requirements.txt') else '❌'}")
     
     def _show_documentation(self):

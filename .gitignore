@@ -1,2 +1,11 @@
 __pycache__/
 .env
+
+# Personal team member configurations
+team/members/
+
+# Generated output files (spreadsheets, reports)
+output/
+
+# System files
+.DS_Store

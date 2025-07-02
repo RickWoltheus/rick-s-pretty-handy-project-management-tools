@@ -75,7 +75,7 @@ class TeamMember:
 class TeamManager:
     """Manages team members and their persistent storage"""
     
-    def __init__(self, team_folder: str = "team"):
+    def __init__(self, team_folder: str = "team/members"):
         self.team_folder = team_folder
         self.ensure_team_folder()
     

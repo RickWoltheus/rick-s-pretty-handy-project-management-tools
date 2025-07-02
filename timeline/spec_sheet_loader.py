@@ -13,7 +13,7 @@ class SpecSheetLoader:
     """Loads project data from existing spec sheets"""
     
     @staticmethod
-    def load_story_points_from_spec_sheet(spec_sheet_path: str = "spec-sheet.xlsx") -> float:
+    def load_story_points_from_spec_sheet(spec_sheet_path: str = "output/spec-sheet.xlsx") -> float:
         """Load total story points from existing spec sheet (same as original)"""
         try:
             if not os.path.exists(spec_sheet_path):

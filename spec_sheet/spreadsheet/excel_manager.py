@@ -15,7 +15,7 @@ from spec_sheet.settings.config_manager import ConfigManager
 class ExcelManager:
     """Manages Excel spreadsheet operations and formatting"""
     
-    def __init__(self, config_manager: ConfigManager, spec_sheet_path: str = "spec-sheet.xlsx"):
+    def __init__(self, config_manager: ConfigManager, spec_sheet_path: str = "output/spec-sheet.xlsx"):
         self.config_manager = config_manager
         self.spec_sheet_path = spec_sheet_path
         self.workbook = None
